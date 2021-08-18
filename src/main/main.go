@@ -1,5 +1,13 @@
 package main
 
+import (
+	"Corgi/src/mpt"
+)
+
 func main() {
-	$END$
+	t := new(mpt.MerklePartialTree)
+	var mkt mpt.Operator
+	mkt = t
+	mkt.Insert("data")
 }
+
