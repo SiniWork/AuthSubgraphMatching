@@ -1,13 +1,17 @@
 package main
 
 import (
-	"Corgi/src/mpt"
+	"Corgi/src/matching"
 )
 
 func main() {
-	t := new(mpt.MerklePartialTree)
-	var mkt mpt.Operator
-	mkt = t
-	mkt.Insert("data")
+
+	fileName := "./data/output.txt"
+	t := new(matching.Graph)
+	t.LoadGraphFromTxt(fileName)
+	t.AssignLabel()
+	t.ObtainNeiStr()
+	t.Get()
+
 }
 
