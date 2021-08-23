@@ -9,9 +9,11 @@ func main() {
 	fileName := "./data/output.txt"
 	t := new(matching.Graph)
 	t.LoadGraphFromTxt(fileName)
-	t.AssignLabel()
+	t.AssignLabel("")
 	t.ObtainNeiStr()
 	t.Get()
+
+	//tools.ExcelToTxt()
 
 }
 
