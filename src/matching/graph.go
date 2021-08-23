@@ -70,7 +70,7 @@ func (g *Graph) LoadGraphFromTxt(fileName string) error {
 
 func (g *Graph) LoadGraphFromExcel(fileName string) error {
 	/*
-		loading the graph from Excel file and saving it into an adjacency list adj
+	loading the graph from Excel file and saving it into an adjacency list adj
 	*/
 	g.adj = make(map[int][]int)
 	xlsx, err := excelize.OpenFile(fileName)
