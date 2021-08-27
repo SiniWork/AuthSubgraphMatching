@@ -121,7 +121,7 @@ func (g *Graph) ObtainNeiStr() error {
 
 	g.neiStr = make(map[string][]int)
 	for k, v := range g.adj {
-		str := string(g.vertices[k].label)
+		str := "#" + string(g.vertices[k].label)
 		var nei []string
 		for _, i := range v {
 			nei = append(nei, string(g.vertices[i].label))

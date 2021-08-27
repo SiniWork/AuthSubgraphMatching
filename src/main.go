@@ -1,29 +1,28 @@
 package main
 
 import (
-	"Corgi/src/matching"
+	"fmt"
 )
 
 func main() {
 
-	// Txt file
+	/*
+	graph test
+	 */
 	//fileName := "./data/output.txt"
+	//fileName := "./data/test.xlsx"
 	//t := new(matching.Graph)
 	//t.LoadGraphFromTxt(fileName)
 	//t.AssignLabel("")
 	//t.ObtainNeiStr()
 	//t.Get()
 
-	// Excel file
-	fileName := "./data/test.xlsx"
-	t := new(matching.Graph)
-	t.LoadGraphFromExcel(fileName)
-	t.AssignLabel("")
-	t.ObtainNeiStr()
-	t.Get()
+	/*
+	mpt test
+	 */
+	var ni byte = 'A'
+	fmt.Println(int(ni))
 
-
-	//tools.ExelToTxt("test.xlsx")
 
 
 
