@@ -10,13 +10,21 @@ type Node interface {
 	Raw() []interface{}
 }
 
+func IsEmptyNode(node Node) bool {
+	return node == nil
+}
+
 type nodeFlag struct {
 	/*
-		hash: hash of the node
-		dirty: whether the node has changes
+	hash: hash of the node
+	dirty: whether the node has changes
 	*/
 	hash []byte
 	dirty bool
+}
+
+func newFlag() nodeFlag {
+	return nodeFlag{dirty: true}
 }
 
 func Hash(node Node) []byte {

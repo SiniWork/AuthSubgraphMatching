@@ -12,6 +12,7 @@ func NewExtensionNode(path []byte, next Node) *ExtensionNode {
 	return &ExtensionNode{
 		Path: path,
 		Next: next,
+		flags: newFlag(),
 	}
 }
 
@@ -22,11 +23,7 @@ func (e ExtensionNode) Hash() []byte {
 func (e ExtensionNode) Raw() []interface{} {
 	hashes := make([]interface{}, 2)
 	hashes[0] = e.Path
-	if len(Serialize(e.Next)) >= 32 {
-		hashes[1] = e.Next.Hash()
-	} else {
-		hashes[1] = e.Next.Raw()
-	}
+	hashes[1] = e.Next.Hash()
 	return hashes
 }
 

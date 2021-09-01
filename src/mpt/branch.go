@@ -2,30 +2,40 @@ package mpt
 
 import "github.com/ethereum/go-ethereum/crypto"
 
-const branchSize = 10
+const branchSize = 26
 
 type BranchNode struct {
 	Branches [branchSize]Node
-	Value    []byte
+	Value    []string
 	flags    nodeFlag
 }
 
 func NewBranchNode() *BranchNode {
 	return &BranchNode{
 		Branches: [branchSize]Node{},
+		flags: newFlag(),
 	}
 }
 
-func (b *BranchNode) SetBranch(nibble byte, node Node) {
-	b.Branches[int(nibble)-65] = node
+func (b *BranchNode) SetBranch(bit byte, node Node) {
+	b.Branches[int(bit)-65] = node
 }
 
-func (b *BranchNode) RemoveBranch(nibble byte) {
-	b.Branches[int(nibble)-65] = nil
+func (b *BranchNode) GetBranch(bit byte) Node {
+	return b.Branches[int(bit)-65]
 }
 
-func (b *BranchNode) SetValue(value []byte) {
-	b.Value = value
+func (b *BranchNode) RemoveBranch(bit byte) {
+	b.Branches[int(bit)-65] = nil
+}
+
+func (b *BranchNode) SetValue(value interface{}) {
+	switch value.(type) {
+	case string:
+		b.Value = []string{value.(string)}
+	case []string:
+		b.Value = value.([]string)
+	}
 }
 
 func (b *BranchNode) RemoveValue() {
@@ -47,20 +57,10 @@ func (b BranchNode) Raw() []interface{} {
 			hashes[i] = " "
 		} else {
 			node := b.Branches[i]
-			if len(Serialize(node)) >= 32 {
-				hashes[i] = node.Hash()
-			} else {
-				// if node can be serialized to less than 32 bits, then
-				// use Serialized directly.
-				// it has to be ">=", rather than ">",
-				// so that when deserialized, the content can be distinguished
-				// by length
-				hashes[i] = node.Raw()
-			}
+			hashes[i] = node.Hash()
 		}
 	}
-
-	hashes[ branchSize-1] = b.Value
+	hashes[branchSize-1] = b.Value
 	return hashes
 }
 

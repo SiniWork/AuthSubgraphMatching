@@ -1,11 +1,11 @@
 package matching
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
-	"io"
-	"os"
+	"io/ioutil"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,34 +35,25 @@ func (g *Graph) LoadGraphFromTxt(fileName string) error {
 	 */
 
 	g.adj = make(map[int][]int)
-	file, err := os.Open(fileName)
+	content, err := readTxtFile(fileName)
 	if err != nil {
-		fmt.Println("Open file error!", err)
+		fmt.Println("Read file error!", err)
 		return err
 	}
-	defer file.Close()
-	reader := bufio.NewReader(file)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				fmt.Println("Read file error!", err)
-				return err
-			}
-		}
+	for _, line := range content {
 		line = strings.TrimSpace(line)
-		list := strings.Split(line, " ")
-		fr, err := strconv.Atoi(list[0])
+		if line == "" {
+			continue
+		}
+		edge := strings.Split(line, " ")
+		fr, err := strconv.Atoi(edge[0])
 		if err != nil {
 			return err
 		}
-		en, err := strconv.Atoi(list[1])
+		en, err := strconv.Atoi(edge[1])
 		if err!= nil {
 			return err
 		}
-		fmt.Println(fr, en)
 		g.adj[fr] = append(g.adj[fr], en)
 	}
 	return nil
@@ -94,22 +85,35 @@ func (g *Graph) LoadGraphFromExcel(fileName string) error {
 	return nil
 }
 
-func (g *Graph) AssignLabel(filename string) error {
+func (g *Graph) AssignLabel(fileName string) error {
 	/*
 	randomly assign a label to each vertex or read the vertex's label from a txt file
 	then saving them into a list g.vertices
 	 */
-	if filename == "" {
-		labelSet := []byte{'A', 'B', 'C', 'D', 'E', 'F','G', 'H', 'I', 'J', 'K', 'L','M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
-		for i := 0; i < len(g.adj); i++ {
-			var v Vertex
-			v.id = i
-			v.label = labelSet[i]
-			v.content = "lsy"
-			g.vertices = append(g.vertices, v)
+	var labelSet []byte
+	if fileName == "" {
+		labelSet = []byte{'A', 'B', 'C', 'D', 'E', 'F','G', 'H', 'I', 'J', 'K', 'L','M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
+	} else {
+		content, err := readTxtFile(fileName)
+		if err != nil {
+			fmt.Println("Read file error!", err)
+			return err
 		}
+		for _, line := range content {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			labelSet = append(labelSet, line[0])
+			}
+		}
+	for i := 0; i < len(g.adj); i++ {
+		var v Vertex
+		v.id = i
+		v.label = labelSet[i]
+		v.content = "lsy"
+		g.vertices = append(g.vertices, v)
 	}
-
 	return nil
 }
 
@@ -121,7 +125,7 @@ func (g *Graph) ObtainNeiStr() error {
 
 	g.neiStr = make(map[string][]int)
 	for k, v := range g.adj {
-		str := "#" + string(g.vertices[k].label)
+		str := string(g.vertices[k].label)
 		var nei []string
 		for _, i := range v {
 			nei = append(nei, string(g.vertices[i].label))
@@ -135,7 +139,7 @@ func (g *Graph) ObtainNeiStr() error {
 	return nil
 }
 
-func (g *Graph) Get() error {
+func (g *Graph) Print() error {
 	for k, v := range g.adj {
 		fmt.Println(k, v)
 	}
@@ -143,6 +147,23 @@ func (g *Graph) Get() error {
 		fmt.Println(k, v)
 	}
 	return nil
+}
+
+func readTxtFile(filePath string) ([]string, error) {
+	fileSuffix :=  path.Ext(filePath)
+	result := []string{}
+	if fileSuffix == ".txt" {
+		cont, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("Open file error!", err)
+			return result, err
+		}
+		s := string(cont)
+		result = strings.Split(s, "\n")
+		return result, nil
+	} else {
+		return result, errors.New("file format error")
+	}
 }
 
 
