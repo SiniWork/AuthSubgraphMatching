@@ -155,11 +155,11 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 	}
 }
 
-type branch struct {
+type potentialPath struct {
 	key []byte
 	node Node
 }
-func (t *Trie) GetCandidate(key []byte) ([]string, bool){
+func (t *Trie) GetCandidate(key []byte) []string{
 	/*
 	get results that include given key
 	 */
@@ -168,11 +168,16 @@ func (t *Trie) GetCandidate(key []byte) ([]string, bool){
 	if root, ok := t.root.(*BranchNode); ok {
 		node := root.GetBranch(key[0])
 		key = key[1:]
-		var stack []branch
-		stack = append(stack, branch{key, node})
+		var latence []potentialPath
+		latence = append(latence, potentialPath{key, node})
 		for {
 			if IsEmptyNode(node) {
-				return result, false
+				if len(latence) == 0 {
+					return result
+				}
+				key = latence[0].key
+				node = latence[0].node
+				latence = latence[1:]
 			}
 
 			if leaf, ok := node.(*LeafNode); ok {
@@ -180,13 +185,33 @@ func (t *Trie) GetCandidate(key []byte) ([]string, bool){
 				if matched == len(key) || IsContain(leaf.Path[matched:], key[matched:]){
 					result = append(result, leaf.Value...)
 				}
-				// next branch
+				if len(latence) == 0 {
+					return result
+				}
+				key = latence[0].key
+				node = latence[0].node
+				latence = latence[1:]
 				continue
 			}
 
-			//if branch, ok := node.(*BranchNode); ok {
-			//
-			//}
+			if branch, ok := node.(*BranchNode); ok {
+				if len(key) == 0 {
+					result = append(result, branch.Value...)
+					if len(latence) == 0 {
+						return result
+					}
+					key = latence[0].key
+					node = latence[0].node
+					latence = latence[1:]
+					continue
+				} else {
+					latence = append(latence, ToBeAdd(key, *branch)...)
+					b, remaining := key[0], key[1:]
+					key = remaining
+					node = branch.GetBranch(b)
+					continue
+				}
+			}
 
 			if ext, ok := node.(*ExtensionNode); ok {
 				matched := PrefixMatchedLen(ext.Path, key)
@@ -206,7 +231,12 @@ func (t *Trie) GetCandidate(key []byte) ([]string, bool){
 							node = ext.Next
 							continue
 						} else {
-							// next branch
+							if len(latence) == 0 {
+								return result
+							}
+							key = latence[0].key
+							node = latence[0].node
+							latence = latence[1:]
 							continue
 						}
 					}
@@ -218,7 +248,7 @@ func (t *Trie) GetCandidate(key []byte) ([]string, bool){
 			}
 		}
 	}
-	return result, false
+	return result
 }
 
 func (t *Trie) Print() {
@@ -286,4 +316,17 @@ func ContainJudge(node1, node2 []byte) (bool, int) {
 	} else {
 		return true, -1
 	}
+}
+
+func ToBeAdd(key []byte, node BranchNode) []potentialPath {
+	subBranches := node.Branches[:key[0]-65]
+	var result []potentialPath
+	for _, v := range subBranches{
+		if IsEmptyNode(v) {
+			continue
+		}
+		p := potentialPath{key, v}
+		result = append(result, p)
+	}
+	return result
 }
