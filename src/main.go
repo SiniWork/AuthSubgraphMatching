@@ -21,16 +21,37 @@ func main() {
 	 */
 	// the range of key: A-Z
 
-	//trie := mpt.NewTrie()
-	//trie.Insert([]byte{'A', 'B', 'C'}, "hello")
-	//trie.Insert([]byte{'A', 'B', 'C'}, "world")
-	//v1, f1 := trie.GetExactOne([]byte{'A', 'B', 'C', 'D'})
-	//v2, f2 := trie.GetExactOne([]byte{'A', 'B', 'C'})
-	//fmt.Println(v1, f1)
-	//fmt.Println(v2, f2)
+	trie := mpt.NewTrie()
+	// test 1
+	trie.Insert([]byte{'A', 'B', 'C', 'D'}, "hello")
+	trie.Insert([]byte{'A', 'B'}, "siyu")
+	trie.Insert([]byte{'A', 'B', 'C'}, "world")
+	trie.Insert([]byte{'B', 'B', 'C', 'D'}, "li")
 
-	bo, i := mpt.ContainJudge([]byte("ABBCDEEFFGH"), []byte("ZZZZZ"))
-	fmt.Println(bo, i)
+	fmt.Println("-------------")
+	v2, _ := trie.GetExactOne([]byte{'B', 'B', 'C', 'D'})
+	fmt.Println(v2)
+
+	// test 2
+	//trie.Insert([]byte{'A', 'B'}, "hello")
+	//trie.Insert([]byte{'B', 'B', 'C'}, "world")
+	//trie.Insert([]byte{'B', 'B', 'C', 'D'}, "siyu")
+	//fmt.Println("-------------")
+	//v2, _ := trie.GetExactOne([]byte{'B', 'B', 'C'})
+	//v2, _ := trie.GetExactOne([]byte{'B', 'B', 'C'})
+	//fmt.Println(v2)
+
+	// test 3
+	//trie.Insert([]byte{'A', 'B', 'C'}, "hello")
+	//trie.Insert([]byte{'B', 'B', 'C'}, "world")
+	//trie.Insert([]byte{'C', 'B', 'C'}, "siyu")
+	//fmt.Println("-------------")
+	//v2, _ := trie.GetExactOne([]byte{'C', 'B', 'C'})
+	//fmt.Println(v2)
+
+
+
+
 
 
 

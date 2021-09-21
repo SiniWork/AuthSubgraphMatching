@@ -1,5 +1,10 @@
 package mpt
 
+import (
+	"errors"
+	"fmt"
+)
+
 type Trie struct {
 	root Node
 }
@@ -8,6 +13,7 @@ func NewTrie() *Trie {
 	return &Trie{}
 }
 
+
 func (t *Trie) Insert(key []byte, value string) error {
 	/*
 	Inserting (key, value) into trie
@@ -15,49 +21,73 @@ func (t *Trie) Insert(key []byte, value string) error {
 	value: the value to be inserted
 	*/
 
+	if len(key) == 0 {
+		return errors.New("the key is empty")
+	}
 	node := &t.root
+	var pre = node
+	var recordB byte
 	for {
 		if IsEmptyNode(*node) {
+			fmt.Println("EmptyNode")
 			leaf := NewLeafNode(key, value)
 			*node = leaf
 			return nil
 		}
 
 		if leaf, ok := (*node).(*LeafNode); ok {
+			fmt.Println("LeafNode")
 			matched := PrefixMatchedLen(leaf.Path, key)
-
+			// first case: full matched
 			if matched == len(key) && matched == len(leaf.Path) {
 				leaf.Value = append(leaf.Value, value)
 				return nil
 			}
-
+			// second case: no matched
 			branch := NewBranchNode()
-			if matched == len(leaf.Path) {
-				// matched cover the key of the present leaf node
-				branch.SetValue(leaf.Value)
-			}
-			if matched == len(key) {
-				// matched cover the key of the insert node
-				branch.SetValue(value)
-			}
-			if matched > 0 {
-				// the proportion of matched is a part of the key of the present leaf node and the insert node
-				// create an extension node for the shared match
-				ext := NewExtensionNode(leaf.Path[:matched], branch)
-				*node = ext
-			} else {
-				// no matched, don't need extension node
+			if matched == 0 {
+				if preBranch, yes := (*pre).(*BranchNode); yes {
+					preBranch.SetBranch(recordB, branch)
+				}
 				*node = branch
+				if len(key) == 0 {
+					branch.SetValue(value)
+					oldLeaf := NewLeafNode(leaf.Path[1:], leaf.Value)
+					branch.SetBranch(leaf.Path[0],oldLeaf)
+					return nil
+				}
+				if len(leaf.Path) == 0 {
+					branch.SetValue(leaf.Value)
+					newLeaf := NewLeafNode(key[1:], value)
+					branch.SetBranch(key[0], newLeaf)
+					return nil
+				}
+				oldLeaf := NewLeafNode(leaf.Path[1:], leaf.Value)
+				branch.SetBranch(leaf.Path[0],oldLeaf)
+				newLeaf := NewLeafNode(key[1:], value)
+				branch.SetBranch(key[0], newLeaf)
+				return nil
 			}
-
-			if matched < len(leaf.Path) {
-				// present leaf have dismatched
-				branchKey, leafKey := leaf.Path[matched], leaf.Path[matched+1:]
-				newLeaf := NewLeafNode(leafKey, leaf.Value)
+			// third case: part matched
+			ext := NewExtensionNode(leaf.Path[:matched], branch)
+			*node = ext
+			if preBranch, yes := (*pre).(*BranchNode); yes {
+				preBranch.SetBranch(recordB, ext)
+			}
+			if matched == len(leaf.Path) {
+				branch.SetValue(leaf.Value)
+				branchKey, leafKey := key[matched], key[matched+1:]
+				newLeaf := NewLeafNode(leafKey, value)
 				branch.SetBranch(branchKey, newLeaf)
-			}
-			if matched < len(key) {
-				// insert key have dismatched
+			} else if matched == len(key) {
+				branch.SetValue(value)
+				oldBranchKey, oldLeafKey := leaf.Path[matched], leaf.Path[matched+1:]
+				oldLeaf := NewLeafNode(oldLeafKey, leaf.Value)
+				branch.SetBranch(oldBranchKey, oldLeaf)
+			} else {
+				oldBranchKey, oldLeafKey := leaf.Path[matched], leaf.Path[matched+1:]
+				oldLeaf := NewLeafNode(oldLeafKey, leaf.Value)
+				branch.SetBranch(oldBranchKey, oldLeaf)
 				branchKey, leafKey := key[matched], key[matched+1:]
 				newLeaf := NewLeafNode(leafKey, value)
 				branch.SetBranch(branchKey, newLeaf)
@@ -66,6 +96,7 @@ func (t *Trie) Insert(key []byte, value string) error {
 		}
 
 		if branch, ok := (*node).(*BranchNode); ok {
+			fmt.Println("BranchNode")
 			if len(key) == 0 {
 				if branch.Value != nil{
 					branch.Value = append(branch.Value, value)
@@ -74,40 +105,70 @@ func (t *Trie) Insert(key []byte, value string) error {
 				}
 				return nil
 			}
+			pre = node
+			recordB = key[0]
 			b, remaining := key[0], key[1:]
 			key = remaining
 			tmp := branch.GetBranch(b)
-			node = &tmp
-			continue
+			if tmp == nil {
+				leaf := NewLeafNode(key, value)
+				branch.SetBranch(b, leaf)
+				return nil
+			} else {
+				node = &tmp
+				continue
+			}
 		}
 
 		if ext, ok := (*node).(*ExtensionNode); ok {
+			fmt.Println("ExtensionNode")
 			matched := PrefixMatchedLen(ext.Path, key)
-			if matched < len(ext.Path) {
-				extKey, branchKey, extRemainingKey := ext.Path[:matched], ext.Path[matched], ext.Path[matched+1:]
-				nodeBranchKey, nodeLeafKey := key[matched], key[matched+1:]
-				branch := NewBranchNode()
+			// first case: full matched
+			if  matched == len(ext.Path) {
+				key = key[matched:]
+				node = &ext.Next
+				continue
+			}
+			// second case: no matched
+			branch := NewBranchNode()
+			if matched == 0 {
+				if preBranch, ok := (*pre).(*BranchNode); ok {
+					preBranch.SetBranch(recordB, branch)
+				}
+				extBranchKey, extRemainingKey := ext.Path[0], ext.Path[1:]
 				if len(extRemainingKey) == 0 {
-					branch.SetBranch(branchKey, ext.Next)
+					branch.SetBranch(extBranchKey, ext.Next)
 				} else {
 					newExt := NewExtensionNode(extRemainingKey, ext.Next)
-					branch.SetBranch(branchKey, newExt)
+					branch.SetBranch(extBranchKey, newExt)
 				}
-				remainingLeaf := NewLeafNode(nodeLeafKey, value)
-				branch.SetBranch(nodeBranchKey, remainingLeaf)
-
-				if len(extKey) == 0 {
-					// there is no shared extension key, then don't need the extension node
-					*node = branch
-				} else {
-					// otherwise create a new extension node
-					*node = NewExtensionNode(extKey, branch)
-				}
+				leafBranchKey, leafRemainingKey := key[0], key[1:]
+				newLeaf := NewLeafNode(leafRemainingKey, value)
+				branch.SetBranch(leafBranchKey, newLeaf)
+				*node = branch
 				return nil
 			}
-			key = key[matched:]
-			node = &ext.Next
-			continue
+			// third case: part matched
+			commonKey, branchKey, extRemainingKey := ext.Path[:matched], ext.Path[matched], ext.Path[matched+1:]
+			oldExt := NewExtensionNode(commonKey, branch)
+			*node = oldExt
+			if preBranch, ok := (*pre).(*BranchNode); ok {
+				preBranch.SetBranch(recordB, oldExt)
+			}
+			if len(extRemainingKey) == 0 {
+				branch.SetBranch(branchKey, ext.Next)
+			} else {
+				newExt := NewExtensionNode(extRemainingKey, ext.Next)
+				branch.SetBranch(branchKey, newExt)
+			}
+			if len(commonKey) == len(key) {
+				branch.SetValue(value)
+			} else {
+				leafBranchKey, leafRemainingKey := key[matched], key[matched+1:]
+				newLeaf := NewLeafNode(leafRemainingKey, value)
+				branch.SetBranch(leafBranchKey, newLeaf)
+			}
+			return nil
 		}
 		panic("unknown type")
 	}
@@ -125,14 +186,17 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 		}
 
 		if leaf, ok := node.(*LeafNode); ok {
+			fmt.Println("leaf node") // for test
 			matched := PrefixMatchedLen(leaf.Path, key)
 			if matched != len(leaf.Path) || matched != len(key) {
+				fmt.Println("don't exist")
 				return nil, false
 			}
 			return leaf.Value, true
 		}
 
 		if branch, ok := node.(*BranchNode); ok {
+			fmt.Println("branch node") // for test
 			if len(key) == 0 {
 				return branch.Value, branch.HasValue()
 			}
@@ -143,8 +207,10 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 		}
 
 		if ext, ok := node.(*ExtensionNode); ok {
+			fmt.Println("extension node") // for test
 			matched := PrefixMatchedLen(ext.Path, key)
 			if matched < len(ext.Path) {
+				fmt.Println("don't exist")
 				return nil, false
 			}
 			key = key[matched:]
