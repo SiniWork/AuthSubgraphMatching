@@ -26,7 +26,7 @@ type Graph struct {
 
 	vertices []Vertex
 	adj map[int][]int
-	neiStr map[string][]int
+	NeiStr map[string][]int
 }
 
 func (g *Graph) LoadGraphFromTxt(fileName string) error {
@@ -123,7 +123,7 @@ func (g *Graph) ObtainNeiStr() error {
 	g.neiStr, key is the one-hop neighborhood string, value is the list of vertex
 	 */
 
-	g.neiStr = make(map[string][]int)
+	g.NeiStr = make(map[string][]int)
 	for k, v := range g.adj {
 		str := string(g.vertices[k].label)
 		var nei []string
@@ -134,16 +134,13 @@ func (g *Graph) ObtainNeiStr() error {
 		for _, t := range nei {
 			str = str + t
 		}
-		g.neiStr[str] = append(g.neiStr[str], k)
+		g.NeiStr[str] = append(g.NeiStr[str], k)
 	}
 	return nil
 }
 
 func (g *Graph) Print() error {
-	for k, v := range g.adj {
-		fmt.Println(k, v)
-	}
-	for k, v := range g.neiStr {
+	for k, v := range g.NeiStr {
 		fmt.Println(k, v)
 	}
 	return nil

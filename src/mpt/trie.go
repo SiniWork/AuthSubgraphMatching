@@ -29,14 +29,12 @@ func (t *Trie) Insert(key []byte, value string) error {
 	var recordB byte
 	for {
 		if IsEmptyNode(*node) {
-			fmt.Println("EmptyNode")
 			leaf := NewLeafNode(key, value)
 			*node = leaf
 			return nil
 		}
 
 		if leaf, ok := (*node).(*LeafNode); ok {
-			fmt.Println("LeafNode")
 			matched := PrefixMatchedLen(leaf.Path, key)
 			// first case: full matched
 			if matched == len(key) && matched == len(leaf.Path) {
@@ -96,7 +94,6 @@ func (t *Trie) Insert(key []byte, value string) error {
 		}
 
 		if branch, ok := (*node).(*BranchNode); ok {
-			fmt.Println("BranchNode")
 			if len(key) == 0 {
 				if branch.Value != nil{
 					branch.Value = append(branch.Value, value)
@@ -121,7 +118,6 @@ func (t *Trie) Insert(key []byte, value string) error {
 		}
 
 		if ext, ok := (*node).(*ExtensionNode); ok {
-			fmt.Println("ExtensionNode")
 			matched := PrefixMatchedLen(ext.Path, key)
 			// first case: full matched
 			if  matched == len(ext.Path) {
@@ -151,7 +147,6 @@ func (t *Trie) Insert(key []byte, value string) error {
 			// third case: part matched
 			commonKey, branchKey, extRemainingKey := ext.Path[:matched], ext.Path[matched], ext.Path[matched+1:]
 			oldExt := NewExtensionNode(commonKey, branch)
-			*node = oldExt
 			if preBranch, ok := (*pre).(*BranchNode); ok {
 				preBranch.SetBranch(recordB, oldExt)
 			}
@@ -168,6 +163,7 @@ func (t *Trie) Insert(key []byte, value string) error {
 				newLeaf := NewLeafNode(leafRemainingKey, value)
 				branch.SetBranch(leafBranchKey, newLeaf)
 			}
+			*node = oldExt
 			return nil
 		}
 		panic("unknown type")
@@ -189,7 +185,6 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 			fmt.Println("leaf node") // for test
 			matched := PrefixMatchedLen(leaf.Path, key)
 			if matched != len(leaf.Path) || matched != len(key) {
-				fmt.Println("don't exist")
 				return nil, false
 			}
 			return leaf.Value, true
@@ -210,7 +205,6 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 			fmt.Println("extension node") // for test
 			matched := PrefixMatchedLen(ext.Path, key)
 			if matched < len(ext.Path) {
-				fmt.Println("don't exist")
 				return nil, false
 			}
 			key = key[matched:]
@@ -235,7 +229,6 @@ func (t *Trie) GetCandidate(key []byte) []string{
 		node := root.GetBranch(key[0])
 		key = key[1:]
 		var latence []potentialPath
-		latence = append(latence, potentialPath{key, node})
 		for {
 			if IsEmptyNode(node) {
 				if len(latence) == 0 {
@@ -247,6 +240,7 @@ func (t *Trie) GetCandidate(key []byte) []string{
 			}
 
 			if leaf, ok := node.(*LeafNode); ok {
+				fmt.Println("leaf node")
 				matched := PrefixMatchedLen(leaf.Path, key)
 				if matched == len(key) || IsContain(leaf.Path[matched:], key[matched:]){
 					result = append(result, leaf.Value...)
@@ -261,7 +255,9 @@ func (t *Trie) GetCandidate(key []byte) []string{
 			}
 
 			if branch, ok := node.(*BranchNode); ok {
+				fmt.Println("branch node")
 				if len(key) == 0 {
+					latence = append(latence, ToBeAdd(key, *branch)...)
 					result = append(result, branch.Value...)
 					if len(latence) == 0 {
 						return result
@@ -280,6 +276,7 @@ func (t *Trie) GetCandidate(key []byte) []string{
 			}
 
 			if ext, ok := node.(*ExtensionNode); ok {
+				fmt.Println("extension node")
 				matched := PrefixMatchedLen(ext.Path, key)
 				if matched < len(ext.Path) && matched < len(key){
 					if ext.Path[len(ext.Path)-1] < key[matched] {
@@ -385,7 +382,13 @@ func ContainJudge(node1, node2 []byte) (bool, int) {
 }
 
 func ToBeAdd(key []byte, node BranchNode) []potentialPath {
-	subBranches := node.Branches[:key[0]-65]
+	var subBranches []Node
+	if len(key) == 0 {
+		subBranches = node.Branches[:'Z'-64]
+	} else {
+		subBranches = node.Branches[:key[0]-65]
+	}
+
 	var result []potentialPath
 	for _, v := range subBranches{
 		if IsEmptyNode(v) {
