@@ -2,17 +2,17 @@ package mpt
 
 import "github.com/ethereum/go-ethereum/crypto"
 
-const branchSize = 26
+const BranchSize = 26
 
 type BranchNode struct {
-	Branches [branchSize]Node
+	Branches [BranchSize]Node
 	Value    []string
 	flags    nodeFlag
 }
 
 func NewBranchNode() *BranchNode {
 	return &BranchNode{
-		Branches: [branchSize]Node{},
+		Branches: [BranchSize]Node{},
 		flags: newFlag(),
 	}
 }
@@ -51,8 +51,8 @@ func (b BranchNode) Hash() []byte {
 }
 
 func (b BranchNode) Raw() []interface{} {
-	hashes := make([]interface{}, branchSize)
-	for i := 0; i < branchSize-1; i++ {
+	hashes := make([]interface{}, BranchSize)
+	for i := 0; i < BranchSize-1; i++ {
 		if b.Branches[i] == nil {
 			hashes[i] = " "
 		} else {
@@ -60,7 +60,7 @@ func (b BranchNode) Raw() []interface{} {
 			hashes[i] = node.Hash()
 		}
 	}
-	hashes[branchSize-1] = b.Value
+	hashes[BranchSize-1] = b.Value
 	return hashes
 }
 

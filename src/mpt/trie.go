@@ -5,14 +5,20 @@ import (
 	"fmt"
 )
 
+type potentialPath struct {
+	key []byte
+	node Node
+}
+
 type Trie struct {
 	root Node
 }
-
+func (t *Trie) GetRoot() Node {
+	return t.root
+}
 func NewTrie() *Trie {
 	return &Trie{}
 }
-
 
 func (t *Trie) Insert(key []byte, value string) error {
 	/*
@@ -215,16 +221,15 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 	}
 }
 
-type potentialPath struct {
-	key []byte
-	node Node
-}
 func (t *Trie) GetCandidate(key []byte) []string{
 	/*
 	get results that include given key
 	 */
 
 	var result []string
+	if len(key) == 0 {
+		return result
+	}
 	if root, ok := t.root.(*BranchNode); ok {
 		node := root.GetBranch(key[0])
 		key = key[1:]
@@ -314,8 +319,76 @@ func (t *Trie) GetCandidate(key []byte) []string{
 	return result
 }
 
-func (t *Trie) Print() {
+func (t *Trie)PrintTrie() {
+	if t.root == nil {
+		return
+	}
+	printNode(t.root)
+	return
+}
 
+func (t *Trie) HashRoot() ([]byte,error) {
+	/*
+	computing the root hash
+	*/
+	if t.root == nil {
+		return []byte{}, errors.New("the trie is empty")
+	}
+	hashed := hash(&t.root)
+	return hashed, nil
+}
+
+func hash(node *Node) []byte {
+	/*
+	computing root hash of the subtree corresponding to the given node
+	 */
+	switch (*node).(type) {
+	case *LeafNode:
+		leaf, _ := (*node).(*LeafNode)
+		hashed := leaf.Hash()
+		leaf.flags.hash = hashed
+		return hashed
+	case *ExtensionNode:
+		ext, _ := (*node).(*ExtensionNode)
+		hash(&ext.Next)
+		ext.flags.hash = ext.Hash()
+		return ext.flags.hash
+	case *BranchNode:
+		branch, _ := (*node).(*BranchNode)
+		for i:=0; i < BranchSize; i++ {
+			if child := branch.Branches[i]; child != nil {
+				hash(&child)
+			}
+		}
+		branch.flags.hash = branch.Hash()
+		return branch.flags.hash
+	}
+	return nil
+}
+
+func printNode(node Node) {
+	switch (node).(type) {
+	case *LeafNode:
+		leaf, _ := (node).(*LeafNode)
+		fmt.Println("LeafNode hash: ", leaf.flags.hash)
+		fmt.Println(leaf.Value)
+		return
+	case *ExtensionNode:
+		ext, _ := (node).(*ExtensionNode)
+		fmt.Println("ExtensionNode hash: ", ext.flags.hash)
+		printNode(ext.Next)
+		return
+	case *BranchNode:
+		branch, _ := (node).(*BranchNode)
+		fmt.Println("BranchNode hash: ", branch.flags.hash)
+		for i:=0; i<BranchSize; i++ {
+			if child := branch.Branches[i]; child != nil {
+				printNode(child)
+			}
+		}
+		return
+	}
+	return
 }
 
 func PrefixMatchedLen(node1, node2 []byte) int {
@@ -384,9 +457,9 @@ func ContainJudge(node1, node2 []byte) (bool, int) {
 func ToBeAdd(key []byte, node BranchNode) []potentialPath {
 	var subBranches []Node
 	if len(key) == 0 {
-		subBranches = node.Branches[:'Z'-64]
+		subBranches = node.Branches[:len(node.Branches)]
 	} else {
-		subBranches = node.Branches[:key[0]-65]
+		subBranches = node.Branches[:key[0]-'A']
 	}
 
 	var result []potentialPath
@@ -398,4 +471,15 @@ func ToBeAdd(key []byte, node BranchNode) []potentialPath {
 		result = append(result, p)
 	}
 	return result
+}
+
+func Test(node LeafNode) bool {
+	newLeaf := NewLeafNode(node.Path, node.Value)
+	newLeaf1 := NewLeafNode(node.Path, node.Value)
+	if newLeaf == newLeaf1 {
+		return true
+	}
+	fmt.Println(newLeaf)
+	fmt.Println(newLeaf1)
+	return false
 }

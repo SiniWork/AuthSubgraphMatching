@@ -9,6 +9,8 @@ import (
 
 func main() {
 
+
+
 	/*
 	graph test
 	 */
@@ -17,7 +19,7 @@ func main() {
 	g.LoadGraphFromTxt("./data/example1.txt")
 	g.AssignLabel("./data/example1_label.txt")
 	g.ObtainNeiStr()
-	g.Print()
+	//g.Print()
 
 	/*
 	mpt test
@@ -30,10 +32,22 @@ func main() {
 			trie.Insert(byteKey, strconv.Itoa(n))
 		}
 	}
-	key := "C"
+	//trie.PrintTrie()
+	fmt.Println("----------------------computing hash-------------------------------")
+	rootHash, _ := trie.HashRoot()
+	fmt.Println(rootHash)
+
+	key := "AB"
+	trie.Prove([]byte(key))
+	VO1, _ := trie.Prove([]byte(key))
+	fmt.Println(mpt.VerifyProof(rootHash, []byte(key), VO1))
+
+
+
+	//key := "C"
 	//v2, _ := trie.GetExactOne([]byte(key))
-	v2 := trie.GetCandidate([]byte(key))
-	fmt.Println(v2)
+	//v2 := trie.GetCandidate([]byte(key))
+	//fmt.Println(v2)
 
 
 	// the range of key: A-Z

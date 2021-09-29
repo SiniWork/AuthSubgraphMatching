@@ -41,5 +41,20 @@ func Serialize(node Node) []byte {
 	return rlp
 }
 
+type HashNode struct {
+	hash []byte
+}
 
+func (n HashNode) Hash() []byte {
+	return n.hash
+}
 
+func (n HashNode) Raw() []interface{} {
+	raw := []interface{}{n.hash}
+	return raw
+}
+
+func NewHashNode(hash []byte) HashNode {
+	hashNode := HashNode{hash: hash}
+	return hashNode
+}
