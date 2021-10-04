@@ -7,22 +7,22 @@ import (
 
 type LeafNode struct {
 	Path []byte
-	Value []string
+	Value []int
 	flags nodeFlag
 }
 
 func NewLeafNode(key []byte, value interface{}) *LeafNode {
 	switch value.(type) {
-	case string:
+	case int:
 		return &LeafNode{
 			Path: key,
-			Value: []string{value.(string)},
+			Value: []int{value.(int)},
 			flags: newFlag(),
 		}
-	case []string:
+	case []int:
 		return &LeafNode{
 		Path: key,
-		Value: value.([]string),
+		Value: value.([]int),
 		flags: newFlag(),
 		}
 	}

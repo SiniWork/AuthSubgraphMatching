@@ -6,7 +6,7 @@ const BranchSize = 26
 
 type BranchNode struct {
 	Branches [BranchSize]Node
-	Value    []string
+	Value    []int
 	flags    nodeFlag
 }
 
@@ -31,10 +31,10 @@ func (b *BranchNode) RemoveBranch(bit byte) {
 
 func (b *BranchNode) SetValue(value interface{}) {
 	switch value.(type) {
-	case string:
-		b.Value = []string{value.(string)}
-	case []string:
-		b.Value = value.([]string)
+	case int:
+		b.Value = []int{value.(int)}
+	case []int:
+		b.Value = value.([]int)
 	}
 }
 

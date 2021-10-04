@@ -10,7 +10,7 @@ type NodeID struct {
 	id int
 }
 
-func (t *Trie) Prove(key []byte) (Proof, bool) {
+func (t *Trie) Prove(key []byte) ([]int, Proof, bool) {
 	/*
 	obtaining merkle proof of the given key
 	*/
@@ -18,9 +18,9 @@ func (t *Trie) Prove(key []byte) (Proof, bool) {
 	nodeExist := make(map[Node]int)
 	proof.NodeRelationMap = make(map[int]map[int]int)
 	if len(key) == 0 {
-		return proof, false
+		return nil, proof, false
 	}
-	var result []string
+	var result []int
 	if root, ok := t.root.(*BranchNode); ok {
 		node := root.GetBranch(key[0])
 		key = key[1:]
@@ -160,7 +160,7 @@ func (t *Trie) Prove(key []byte) (Proof, bool) {
 			}
 		}
 	}
-	return proof, true
+	return result, proof, true
 }
 
 func VerifyProof(rootHash []byte, key []byte, proof Proof)  bool {

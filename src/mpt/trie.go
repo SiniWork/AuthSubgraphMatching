@@ -20,7 +20,7 @@ func NewTrie() *Trie {
 	return &Trie{}
 }
 
-func (t *Trie) Insert(key []byte, value string) error {
+func (t *Trie) Insert(key []byte, value int) error {
 	/*
 	Inserting (key, value) into trie
 	key: the key to be inserted
@@ -176,7 +176,7 @@ func (t *Trie) Insert(key []byte, value string) error {
 	}
 }
 
-func (t *Trie) GetExactOne(key []byte) ([]string, bool){
+func (t *Trie) GetExactOne(key []byte) ([]int, bool){
 	/*
 	Get the element depends on the given key
 	 */
@@ -221,12 +221,12 @@ func (t *Trie) GetExactOne(key []byte) ([]string, bool){
 	}
 }
 
-func (t *Trie) GetCandidate(key []byte) []string{
+func (t *Trie) GetCandidate(key []byte) []int{
 	/*
 	get results that include given key
 	 */
 
-	var result []string
+	var result []int
 	if len(key) == 0 {
 		return result
 	}
