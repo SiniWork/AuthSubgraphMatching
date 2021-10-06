@@ -33,11 +33,6 @@ type Graph struct {
 	GHash []byte
 }
 
-type QVertex struct {
-	base QueryVertex
-	candidates []int
-}
-
 
 func (g *Graph) LoadGraphFromTxt(fileName string) error {
 	/*
@@ -190,149 +185,72 @@ func (g *Graph) computingHashVal(v Vertex) []byte {
 	return crypto.Keccak256(outXor)
 }
 
-func (g *Graph) ObtainMatchedGraph(query []QVertex) []map[int]int {
+func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	/*
 	Obtaining all sub graphs that matched the given query graph in the data graph
 	 */
 	var result []map[int]int
-	expandId := getExpandQueryVertex(query)
-	pendingVertex := query[expandId]
-	for _, candid := range pendingVertex.candidates {
+	expandId := getExpandQueryVertex(query.CQVList)
+	pendingVertex := query.CQVList[expandId]
+	for _, candid := range pendingVertex.Candidates {
 		res := g.matchingV1(candid, expandId, query)
 		result = append(result, res...)
 	}
 	return result
 }
 
-//func (g *Graph) matchingV1(candidateId, expandQId int, queryList []QVertex) []map[int]int {
-//	/*
-//	Expanding the data graph from the given candidate vertex to obtain matched results
-//	 */
-//	var result []map[int]int
-//	exSet := make(map[int][]int)
-//	exSet[1] = g.adj[candidateId]
-//	visited := initialVisited(len(g.adj), g.adj[candidateId])
-//	visited[candidateId] = true
-//	for i:=1; i<=len(queryList[expandQId].base.ExpandLayer); i++ {
-//		// get the vertices of the current layer of the data graph
-//		var gPresentVer []int
-//		if i == 1 {
-//			gPresentVer = exSet[i]
-//			res := make(map[int]int)
-//			res[expandQId] = candidateId
-//			result = append(result, res)
-//		} else {
-//
-//		}
-//
-//		// get the vertices of the current layer of the query graph and the candidates of the vertices
-//		qPresentVer := queryList[expandQId].base.ExpandLayer[i]
-//		qVerCandi := make(map[int]map[int]int)
-//		for _, qV := range qPresentVer {
-//			candi := make(map[int]int) // play the role of bloom filter
-//			for _, c := range queryList[qV].candidates {
-//				candi[c] = c
-//			}
-//			qVerCandi[qV] = candi
-//		}
-//
-//		// classic the vertices of the current layer of the data graph according to query candidates map
-//		matched := make(map[int][]int)
-//		for _, gV := range gPresentVer {
-//			for qV, qVC := range qVerCandi {
-//				if _, ok := qVC[gV]; ok {
-//					matched[qV] = append(matched[qV], gV)
-//				}
-//			}
-//		}
-//
-//		// obtain media result
-//
-//
-//	}
-//	return nil
-//}
-
-func (g *Graph) matchingV1(candidateId, expandQId int, queryList []QVertex) []map[int]int {
+func (g *Graph) matchingV1(candidateId, expandQId int, query QueryGraph) []map[int]int {
 	/*
 	Expanding the data graph from the given candidate vertex to obtain matched results
 	*/
 	var result []map[int]int
-	exSet := make(map[int][]int)
-	exSet[1] = g.adj[candidateId]
-	visited := initialVisited(len(g.adj), g.adj[candidateId])
-	visited[candidateId] = true
-	for i:=1; i<=len(queryList[expandQId].base.ExpandLayer); i++ {
-		// get the vertices of the current layer of the data graph
-		var gPresentVer []int
-		if i == 1 {
-			gPresentVer = exSet[i]
-			res := make(map[int]int)
-			res[expandQId] = candidateId
-			result = append(result, res)
-		} else {
+	visited := g.setVisited(candidateId, len(query.CQVList[expandQId].Base.ExpandLayer))
 
-		}
+	expL := 1
+	var gVer []int
+	gVer = append(gVer, candidateId)
+	preMatched := make(map[int]int)
+	preMatched[expandQId] = candidateId
+	g.matchingV2(expL, gVer, expandQId, query, visited, preMatched, &result)
 
-		// get the vertices of the current layer of the query graph and the candidates of the vertices
-		qPresentVer := queryList[expandQId].base.ExpandLayer[i]
-		qVerCandi := make(map[int]map[int]int)
-		for _, qV := range qPresentVer {
-			candi := make(map[int]int) // play the role of bloom filter
-			for _, c := range queryList[qV].candidates {
-				candi[c] = c
-			}
-			qVerCandi[qV] = candi
-		}
-
-		// classic the vertices of the current layer of the data graph according to query candidates map
-		matched := make(map[int][]int)
-		for _, gV := range gPresentVer {
-			for qV, qVC := range qVerCandi {
-				if _, ok := qVC[gV]; ok {
-					matched[qV] = append(matched[qV], gV)
-				}
-			}
-		}
-		// obtain media result
-
-
-	}
-	return nil
+	return result
 }
 
-func (g *Graph) matchingV2(expT int, gVer []int, expQId int, queryList []QVertex, visited map[int]bool, preMatched map[int]int) []map[int]int{
+func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, visited []map[int]bool, preMatched map[int]int, res *[]map[int]int) {
 	/*
-	expT: still needed expanding times
+	expT: still need expanding times
 	gVer: the set of vertices that need to be expanded
 	expQId: the starting expansion query vertex
 	queryList: all the query vertices and their related information
-	visited: show whether the vertex has been visited
+	visited: for checking whether present vertex has been visited in last layer
 	preMatched: already matched part
+	res: save the result
 	 */
-	if expT > len(queryList[expQId].base.ExpandLayer) {
-		return nil
+	if expL > len(query.CQVList[expQId].Base.ExpandLayer) {
+		return
 	}
+
 	// get the vertices of the current layer of the data graph
 	var gPresentVer []int
 	for _, k := range gVer{
 		for _, j := range g.adj[k] {
-			if !visited[j] {
-				visited[j] = true
+			if !visited[expL-1][j] {
 				gPresentVer = append(gPresentVer, j)
 			}
 		}
 	}
+
 	// get the vertices of the current layer of the query graph and the candidates of the vertices
-	qPresentVer := queryList[expQId].base.ExpandLayer[expT]
-	qVerCandi := make(map[int]map[int]int)
+	qPresentVer := query.CQVList[expQId].Base.ExpandLayer[expL]
+	qVerCandi := make(map[int]map[int]bool)
 	for _, qV := range qPresentVer {
-		candi := make(map[int]int) // play the role of bloom filter
-		for _, c := range queryList[qV].candidates {
-			candi[c] = c
+		candi := make(map[int]bool) // play the role of bloom filter
+		for _, c := range query.CQVList[qV].Candidates {
+			candi[c] = true
 		}
 		qVerCandi[qV] = candi
 	}
+
 	// classic the vertices of the current layer of the data graph according to query candidates map
 	matched := make(map[int][]int)
 	for _, gV := range gPresentVer {
@@ -345,40 +263,173 @@ func (g *Graph) matchingV2(expT int, gVer []int, expQId int, queryList []QVertex
 	// if no matched then return
 	for _, v := range matched {
 		if len(v) == 0 {
-			return nil
+			return
 		}
 	}
-	// obtain media results and filter these results
+
+	// obtain media results and filter these results and present layer vertices
 	var media []map[int]int
 	sort.Ints(qPresentVer)
 	oneMap := make(map[int]int)
 	Product(matched, &media, qPresentVer, 0, oneMap)
+	var filterMedia []map[int]int
+	filterVer := g.Filter(preMatched, media, &filterMedia, query.Adj)
+	// if present layer has no media result then return
+	if len(filterMedia) == 0 {
+		return
+	}
 
-
-	return nil
+	// if present layer is the last layer then add the filterMedia into res
+	if expL == len(query.CQVList[expQId].Base.ExpandLayer) {
+		*res = append(*res, filterMedia...)
+	} else {
+		// else continue matching
+		for i, eachM := range filterMedia {
+			g.matchingV2(expL+1, filterVer[i], expQId, query, visited, eachM, res)
+		}
+	}
+	return
 }
 
-// func (g* Graph) Prove() 2
+func (g *Graph) Filter(preMatched map[int]int, raw []map[int]int, fine *[]map[int]int, qAdj map[int][]int) [][]int{
+	/*
+	Filter the raw media results rely on the connectivity of query graph and the vertices of present layer
+	 */
+	var verList [][]int
+	var flag = true
+	for _, r := range raw {
+		if checkDuplicateVal(r) {
+			continue
+		}
+		presentMatched := append2Map(preMatched, r)
+		flag = true
+		var verL []int
+		I:
+		for k1, v1 := range presentMatched {
+			k1Nei := make(map[int]bool)
+			for _, kn := range qAdj[k1]{
+				k1Nei[kn] = true
+			}
+			v1Nei := make(map[int]bool)
+			for _, vn := range g.adj[v1]{
+				v1Nei[vn] = true
+			}
+			for k2, v2 := range preMatched {
+				if k1 == k2 {
+					continue
+				} else if !connected(k1Nei, k2, v1Nei, v2){
+					flag = false
+					break I
+				}
+			}
+		}
+		if flag {
+			for _, v := range r {
+				verL = append(verL, v)
+			}
+			verList = append(verList, verL)
+			*fine = append(*fine, presentMatched)
+		}
+	}
+	return verList
+}
 
+func (g *Graph) setVisited(candidateId, layers int) []map[int]bool {
+	/*
+	Expanding 'layer' times from the given start vertex 'candidateID', and setting the visited status for the vertices of layer
+	 */
+	var res []map[int]bool
+	visi := make(map[int]bool)
+	visi[candidateId] = true
+	res = append(res, visi)
+
+	hopVertices := make(map[int][]int)
+	hopVertices[0] = append(hopVertices[0], candidateId)
+	for hop:=0; hop < layers; hop++ {
+		visited := make(map[int]bool)
+		for _, k := range hopVertices[hop]{
+			for _, j := range g.adj[k] {
+				if !res[hop][j] {
+					visited[j] = true
+					hopVertices[hop+1] = append(hopVertices[hop+1], j)
+				}
+			}
+		}
+		res = append(res, visited)
+	}
+	return res
+}
+
+func checkDuplicateVal(mp map[int]int) bool {
+	/*
+	Checking whether the given map has the same value
+	 */
+	vMp := make(map[int]int)
+	for _, v := range mp {
+		if _, ok := vMp[v]; ok {
+			return true
+		} else {
+			vMp[v] = 1
+		}
+	}
+	return false
+}
+
+func append2Map(mp1, mp2 map[int]int) map[int]int {
+	res := make(map[int]int)
+	for k, v := range mp2 {
+		res[k] = v
+	}
+	for k, v := range mp1 {
+		res[k] = v
+	}
+	return res
+}
+
+func copyMap(orig map[int]int) map[int]int {
+	cp := make(map[int]int)
+	for k, v := range orig {
+		cp[k] = v
+	}
+	return cp
+}
+
+func connected(qNei map[int]bool, qV int, gNei map[int]bool, gV int) bool {
+	/*
+	Checking whether the connection relationship between the two graph vertices is the same as the two query vertices
+	 */
+	if qNei[qV] && gNei[gV] {
+		return true
+	} else if !qNei[qV] && !gNei[gV] {
+		return true
+	}
+	return false
+}
 
 func Product(matchedMap map[int][]int, res *[]map[int]int, qV []int, level int, oneMap map[int]int) {
+	/*
+	Permutation and combination on multiple lists
+	 */
 	if level < len(matchedMap) {
 		for i:= 0; i<len(matchedMap[qV[level]]); i++ {
 			oneMap[qV[level]] = matchedMap[qV[level]][i]
 			Product(matchedMap, res, qV, level+1, oneMap)
 		}
 	} else {
-		*res = append(*res, oneMap)
+		newMp := copyMap(oneMap)
+		*res = append(*res, newMp)
 	}
 }
 
-
-func getExpandQueryVertex(qList []QVertex) int {
+func getExpandQueryVertex(qList []CandiQVertex) int {
+	/*
+	Computing the weights for each query vertex and choose the smallest
+	 */
 	bias := 0.5
 	index := 0
 	coe := 10000000000.0000
 	for i, each := range qList {
-		temp := float64(len(each.candidates))*(1-bias) + float64(len(each.base.ExpandLayer))*bias
+		temp := float64(len(each.Candidates))*(1-bias) + float64(len(each.Base.ExpandLayer))*bias
 		if temp < coe {
 			index = i
 		}
@@ -417,6 +468,9 @@ func hash(v Vertex) []byte {
 }
 
 func xor(str1, str2 []byte) []byte {
+	/*
+	Computing the XOR result of the given two byte array
+	 */
 	var res []byte
 	if len(str1) != len(str2) {
 		return res

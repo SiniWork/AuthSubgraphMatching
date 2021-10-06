@@ -1,31 +1,49 @@
 package matching
 
-type QueryVertex struct {
+type QVertex struct {
 	Id int
 	Label byte
 	OneHopStr []byte
 	ExpandLayer map[int][]int
 }
 
-func QueryPreProcessing(queryFile, queryLabelFile string) []QueryVertex {
+type CandiQVertex struct {
+	Base QVertex
+	Candidates []int
+}
+
+type QueryGraph struct {
+	CQVList []CandiQVertex
+	Adj map[int][]int
+}
+
+func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 	/*
-		Preprocessing the query graph
+	Preprocessing the query graph
 	*/
+	var queryG QueryGraph
 	var query Graph
-	var queryVertices []QueryVertex
 	query.LoadGraphFromTxt(queryFile)
 	query.AssignLabel(queryLabelFile)
+	queryG.Adj = query.adj
 
 	for _, v := range query.vertices {
-		qv := QueryVertex{Id: v.id, Label: v.label}
-		qv.OneHopStr = append(qv.OneHopStr, v.label)
+		qV := QVertex{Id: v.id, Label: v.label}
+		qV.OneHopStr = append(qV.OneHopStr, v.label)
 		for _, nei := range query.adj[v.id] {
-			qv.OneHopStr = append(qv.OneHopStr, query.vertices[nei].label)
+			qV.OneHopStr = append(qV.OneHopStr, query.vertices[nei].label)
 		}
-		qv.ExpandLayer = expandGraph(v.id, query.adj)
-		queryVertices = append(queryVertices, qv)
+		qV.ExpandLayer = expandGraph(v.id, query.adj)
+		cQV := CandiQVertex{Base: qV}
+		queryG.CQVList = append(queryG.CQVList, cQV)
 	}
-	return queryVertices
+	return queryG
+}
+
+func AttachCandidate(candiList [][]int, qG *QueryGraph) {
+	for i, candi := range candiList {
+		qG.CQVList[i].Candidates = candi
+	}
 }
 
 func expandGraph(v int, adj map[int][]int) map[int][]int {
