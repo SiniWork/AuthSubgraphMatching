@@ -17,7 +17,6 @@ type Vertex struct {
 	id int
 	label byte
 	content string
-	hashVal []byte
 }
 
 type Graph struct {
@@ -157,11 +156,11 @@ func (g *Graph) ComputingGHash() []byte {
 	 */
 	var accHashVal []byte
 	for i, ver := range g.vertices {
-		ver.hashVal = g.computingHashVal(ver)
+		hashVal := g.computingHashVal(ver)
 		if i == 0 {
-			accHashVal = ver.hashVal
+			accHashVal = hashVal
 		} else {
-			accHashVal = xor(accHashVal, ver.hashVal)
+			accHashVal = xor(accHashVal, hashVal)
 		}
 
 	}
@@ -192,7 +191,9 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	var result []map[int]int
 	expandId := getExpandQueryVertex(query.CQVList)
 	pendingVertex := query.CQVList[expandId]
+
 	for _, candid := range pendingVertex.Candidates {
+		fmt.Println(candid)
 		res := g.matchingV1(candid, expandId, query)
 		result = append(result, res...)
 	}
@@ -232,9 +233,11 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 
 	// get the vertices of the current layer of the data graph
 	var gPresentVer []int
+	repeat := make(map[int]bool)
 	for _, k := range gVer{
 		for _, j := range g.adj[k] {
-			if !visited[expL-1][j] {
+			if !visited[expL-1][j] && !repeat[j]{
+				repeat[j] = true
 				gPresentVer = append(gPresentVer, j)
 			}
 		}
@@ -253,6 +256,7 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 
 	// classic the vertices of the current layer of the data graph according to query candidates map
 	matched := make(map[int][]int)
+	fmt.Println("gPresentVer: ", gPresentVer)
 	for _, gV := range gPresentVer {
 		for qV, qVC := range qVerCandi {
 			if _, ok := qVC[gV]; ok {
@@ -261,19 +265,19 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 		}
 	}
 	// if no matched then return
-	for _, v := range matched {
-		if len(v) == 0 {
-			return
-		}
+	fmt.Println("matched: ", matched)
+	if len(matched) < len(qPresentVer) {
+		return
 	}
 
 	// obtain media results and filter these results and present layer vertices
 	var media []map[int]int
-	sort.Ints(qPresentVer)
 	oneMap := make(map[int]int)
 	Product(matched, &media, qPresentVer, 0, oneMap)
+	fmt.Println("media result: ", media)
 	var filterMedia []map[int]int
 	filterVer := g.Filter(preMatched, media, &filterMedia, query.Adj)
+	fmt.Println("present result: ", filterMedia)
 	// if present layer has no media result then return
 	if len(filterMedia) == 0 {
 		return
@@ -282,13 +286,13 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 	// if present layer is the last layer then add the filterMedia into res
 	if expL == len(query.CQVList[expQId].Base.ExpandLayer) {
 		*res = append(*res, filterMedia...)
+		return
 	} else {
 		// else continue matching
 		for i, eachM := range filterMedia {
 			g.matchingV2(expL+1, filterVer[i], expQId, query, visited, eachM, res)
 		}
 	}
-	return
 }
 
 func (g *Graph) Filter(preMatched map[int]int, raw []map[int]int, fine *[]map[int]int, qAdj map[int][]int) [][]int{
@@ -301,7 +305,7 @@ func (g *Graph) Filter(preMatched map[int]int, raw []map[int]int, fine *[]map[in
 		if checkDuplicateVal(r) {
 			continue
 		}
-		presentMatched := append2Map(preMatched, r)
+		presentMatched := append2IntMap(preMatched, r)
 		flag = true
 		var verL []int
 		I:
@@ -314,7 +318,7 @@ func (g *Graph) Filter(preMatched map[int]int, raw []map[int]int, fine *[]map[in
 			for _, vn := range g.adj[v1]{
 				v1Nei[vn] = true
 			}
-			for k2, v2 := range preMatched {
+			for k2, v2 := range presentMatched {
 				if k1 == k2 {
 					continue
 				} else if !connected(k1Nei, k2, v1Nei, v2){
@@ -355,6 +359,9 @@ func (g *Graph) setVisited(candidateId, layers int) []map[int]bool {
 				}
 			}
 		}
+		for k, v := range res[hop] {
+			visited[k] = v
+		}
 		res = append(res, visited)
 	}
 	return res
@@ -375,7 +382,7 @@ func checkDuplicateVal(mp map[int]int) bool {
 	return false
 }
 
-func append2Map(mp1, mp2 map[int]int) map[int]int {
+func append2IntMap(mp1, mp2 map[int]int) map[int]int {
 	res := make(map[int]int)
 	for k, v := range mp2 {
 		res[k] = v
@@ -432,6 +439,7 @@ func getExpandQueryVertex(qList []CandiQVertex) int {
 		temp := float64(len(each.Candidates))*(1-bias) + float64(len(each.Base.ExpandLayer))*bias
 		if temp < coe {
 			index = i
+			coe = temp
 		}
 	}
 	return index
