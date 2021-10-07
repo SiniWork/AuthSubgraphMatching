@@ -245,7 +245,7 @@ func (t *Trie) GetCandidate(key []byte) []int{
 			}
 
 			if leaf, ok := node.(*LeafNode); ok {
-				fmt.Println("leaf node")
+				//fmt.Println("leaf node")
 				matched := PrefixMatchedLen(leaf.Path, key)
 				if matched == len(key) || IsContain(leaf.Path[matched:], key[matched:]){
 					result = append(result, leaf.Value...)
@@ -260,7 +260,7 @@ func (t *Trie) GetCandidate(key []byte) []int{
 			}
 
 			if branch, ok := node.(*BranchNode); ok {
-				fmt.Println("branch node")
+				//fmt.Println("branch node")
 				if len(key) == 0 {
 					latence = append(latence, ToBeAdd(key, *branch)...)
 					result = append(result, branch.Value...)
@@ -281,7 +281,7 @@ func (t *Trie) GetCandidate(key []byte) []int{
 			}
 
 			if ext, ok := node.(*ExtensionNode); ok {
-				fmt.Println("extension node")
+				//fmt.Println("extension node")
 				matched := PrefixMatchedLen(ext.Path, key)
 				if matched < len(ext.Path) && matched < len(key){
 					if ext.Path[len(ext.Path)-1] < key[matched] {
