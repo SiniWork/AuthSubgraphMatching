@@ -2,6 +2,7 @@ package mpt
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"
+	"strconv"
 )
 
 
@@ -35,7 +36,11 @@ func (l LeafNode) Hash() []byte {
 
 func (l LeafNode) Raw() []interface{} {
 	path := l.Path
-	raw := []interface{}{path, l.Value}
+	var valueStr []string
+	for _, v := range l.Value {
+		valueStr = append(valueStr,strconv.Itoa(v))
+	}
+	raw := []interface{}{path, valueStr}
 	return raw
 }
 

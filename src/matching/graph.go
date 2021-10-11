@@ -35,7 +35,7 @@ type Graph struct {
 
 func (g *Graph) LoadGraphFromTxt(fileName string) error {
 	/*
-	loading the graph from txt file and saving it into an adjacency list adj
+	loading the graph from txt file and saving it into an adjacency list adj, the subscripts start from 0
 	 */
 
 	g.adj = make(map[int][]int)
@@ -162,7 +162,14 @@ func (g *Graph) ComputingGHash() []byte {
 		} else {
 			accHashVal = xor(accHashVal, hashVal)
 		}
-
+	}
+	partHashVal := accHashVal
+	for i:=0; i<5; i++ {
+		partHashVal = xor(partHashVal, g.computingHashVal(g.vertices[i]))
+	}
+	wholeHashVal := partHashVal
+	for i:=0; i<5; i++ {
+		wholeHashVal = xor(wholeHashVal, g.computingHashVal(g.vertices[i]))
 	}
 	g.GHash = crypto.Keccak256(accHashVal)
 	return accHashVal
@@ -193,7 +200,7 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	pendingVertex := query.CQVList[expandId]
 
 	for _, candid := range pendingVertex.Candidates {
-		fmt.Println(candid)
+		//fmt.Println(candid)
 		res := g.matchingV1(candid, expandId, query)
 		result = append(result, res...)
 	}
@@ -254,9 +261,9 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 		qVerCandi[qV] = candi
 	}
 
-	// classic the vertices of the current layer of the data graph according to query candidates map
+	// classify the vertices of the current layer of the data graph according to query candidates map
 	matched := make(map[int][]int)
-	fmt.Println("gPresentVer: ", gPresentVer)
+	//fmt.Println("gPresentVer: ", gPresentVer)
 	for _, gV := range gPresentVer {
 		for qV, qVC := range qVerCandi {
 			if _, ok := qVC[gV]; ok {
@@ -265,7 +272,7 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 		}
 	}
 	// if no matched then return
-	fmt.Println("matched: ", matched)
+	//fmt.Println("matched: ", matched)
 	if len(matched) < len(qPresentVer) {
 		return
 	}
@@ -274,10 +281,10 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 	var media []map[int]int
 	oneMap := make(map[int]int)
 	Product(matched, &media, qPresentVer, 0, oneMap)
-	fmt.Println("media result: ", media)
+	//fmt.Println("media result: ", media)
 	var filterMedia []map[int]int
 	filterVer := g.Filter(preMatched, media, &filterMedia, query.Adj)
-	fmt.Println("present result: ", filterMedia)
+	//fmt.Println("present result: ", filterMedia)
 	// if present layer has no media result then return
 	if len(filterMedia) == 0 {
 		return

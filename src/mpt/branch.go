@@ -1,6 +1,9 @@
 package mpt
 
-import "github.com/ethereum/go-ethereum/crypto"
+import (
+	"github.com/ethereum/go-ethereum/crypto"
+	"strconv"
+)
 
 const BranchSize = 26
 
@@ -60,7 +63,11 @@ func (b BranchNode) Raw() []interface{} {
 			hashes[i] = node.Hash()
 		}
 	}
-	hashes[BranchSize-1] = b.Value
+	var valueStr []string
+	for _, v := range b.Value {
+		valueStr = append(valueStr,strconv.Itoa(v))
+	}
+	hashes[BranchSize-1] = valueStr
 	return hashes
 }
 

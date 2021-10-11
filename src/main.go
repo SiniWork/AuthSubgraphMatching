@@ -31,7 +31,16 @@ func main() {
 			trie.Insert(byteKey, n)
 		}
 	}
-	fmt.Println("----------------getting candidates for each query vertex--------------")
+
+	//fmt.Println("--------------mpt proving test----------------------------------")
+	//rootHash, _ := trie.HashRoot()
+	//fmt.Println(rootHash)
+	//key := "CBC"
+	//_, VO1, _ := trie.Prove([]byte(key))
+	//fmt.Println(mpt.Verify(rootHash, []byte(key), VO1))
+
+	fmt.Println("----------------matching proving test------------------------------")
+	fmt.Println("----------------getting candidates for each query vertex-----------")
 	var candiList [][]int
 	for _, each := range qG.CQVList {
 		each.Candidates = trie.GetCandidate(each.Base.OneHopStr)
@@ -40,25 +49,25 @@ func main() {
 	}
 	matching.AttachCandidate(candiList, &qG)
 
+	//fmt.Println(g.ComputingGHash())
+	VO2 := g.Prove(qG)
+	fmt.Println(matching.Verify(VO2, g.GHash, qG))
+
+
+
 	/*
 	matching test
 	*/
-	fmt.Println("----------------matching below--------------")
-	fmt.Println("----------------getting matched graph for query graph--------------")
+	//fmt.Println("----------------matching below--------------")
+	//fmt.Println("----------------getting matched graph for query graph--------------")
 	//g.ObtainMatchedGraphs(qG)
-	matched := g.ObtainMatchedGraphs(qG)
-	fmt.Println(matched)
+	//matched := g.ObtainMatchedGraphs(qG)
+	//fmt.Println(matched)
 
 
-	//fmt.Println("----------------------computing hash-------------------------------")
-	//rootHash, _ := trie.HashRoot()
-	//fmt.Println(rootHash)
 
-	// fmt.Println("----------------------proving test---------------------------------")
-	//key := "CBC"
-	//trie.Prove([]byte(key))
-	//VO1, _ := trie.Prove([]byte(key))
-	//fmt.Println(mpt.VerifyProof(rootHash, []byte(key), VO1))
+
+
 
 	//fmt.Println("----------------------finding test---------------------------------")
 	//key := "CBC"
@@ -66,7 +75,7 @@ func main() {
 	////v2 := trie.GetCandidate([]byte(key))
 	//fmt.Println(v2)
 
-	//fmt.Println("----------------------insert and find test---------------------------------")
+	//fmt.Println("----------------------insert and find test-------------------------")
 	// the range of key: A-Z
 	// test 1
 	//trie.Insert([]byte{'A', 'B', 'C', 'D'}, "hello")
@@ -95,15 +104,6 @@ func main() {
 }
 
 
-
 // other test
 //func main() {
-//	test := make(map[int][]int)
-//	test[0] = []int{3, 4}
-//	test[1] = []int{1, 2}
-//	var res []map[int]int
-//	one := make(map[int]int)
-//	matching.Product(test, &res, []int{0, 1}, 0, one)
-//	fmt.Println(res)
 //}
-
