@@ -26,7 +26,7 @@ func (g *Graph) Prove(query QueryGraph) Proof {
 	*/
 	var VO Proof
 	VO.RemainGHash = g.ComputingGHash()
-	expandId := getExpandQueryVertex(query.CQVList)
+	expandId := GetExpandQueryVertex(query.CQVList)
 	pendingVertex := query.CQVList[expandId]
 	VO.Evidence = make(map[int]OneGroupProof)
 	layers := len(pendingVertex.Base.ExpandLayer)
@@ -204,7 +204,7 @@ func (g *OneGroupProof) checkingRes(candidate int, query QueryGraph) bool {
 	Checking whether the reMatching results are the same as received results
 	 */
 	var result []map[int]int
-	expandQId := getExpandQueryVertex(query.CQVList)
+	expandQId := GetExpandQueryVertex(query.CQVList)
 	visited := g.setVisited(candidate, len(query.CQVList[expandQId].Base.ExpandLayer))
 	expL := 1
 	var gVer []int
@@ -292,4 +292,18 @@ func (g *OneGroupProof) filter(preMatched map[int]int, raw []map[int]int, fine *
 		}
 	}
 	return verList
+}
+
+func (p *Proof) Size() int {
+	/*
+	Counting the size of the Proof
+	 */
+	totalSize := 0
+	for _, v := range p.Evidence {
+		totalSize = totalSize + len(v.Aux.vertexList)*9
+		for _, lis := range v.Aux.adj{
+			totalSize = totalSize + len(lis)*8
+		}
+	}
+	return totalSize
 }

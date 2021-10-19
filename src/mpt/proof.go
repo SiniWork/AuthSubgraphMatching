@@ -2,7 +2,7 @@ package mpt
 
 type Proof struct {
 	Nodes []Node
-	NodeRelationMap map[int]map[int]int
+	NodeRelationMap map[int]map[int8]int
 }
 
 type NodeCom struct {
@@ -22,13 +22,15 @@ func (t *Trie) Prove(key []byte) ([]int, Proof, bool) {
 	obtaining merkle proof of the given key
 	*/
 	var proof Proof
+	t.HashRoot()
 	nodeExist := make(map[Node]int)
-	proof.NodeRelationMap = make(map[int]map[int]int)
+	proof.NodeRelationMap = make(map[int]map[int8]int)
 	if len(key) == 0 {
 		return nil, proof, false
 	}
 	var result []int
 	if root, ok := t.root.(*BranchNode); ok {
+		//fmt.Println("branch node")
 		node := root.GetBranch(key[0])
 		key = key[1:]
 		nodeExist[root] = len(proof.Nodes)
@@ -130,8 +132,9 @@ func (t *Trie) Prove(key []byte) ([]int, Proof, bool) {
 			continue
 		case *BranchNode:
 			branch, _ := (node).(*BranchNode)
-			proof.NodeRelationMap[nodeExist[branch]] = make(map[int]int)
-			for i:=0; i<len(branch.Branches); i++ {
+			proof.NodeRelationMap[nodeExist[branch]] = make(map[int8]int)
+			var i int8
+			for i=0; i<int8(len(branch.Branches)); i++ {
 				child := branch.Branches[i]
 				if IsEmptyNode(child) {
 					continue
@@ -154,7 +157,7 @@ func (t *Trie) Prove(key []byte) ([]int, Proof, bool) {
 			}
 		case *ExtensionNode:
 			ext, _ := (node).(*ExtensionNode)
-			proof.NodeRelationMap[nodeExist[ext]] = make(map[int]int)
+			proof.NodeRelationMap[nodeExist[ext]] = make(map[int8]int)
 			if j, yes := nodeExist[ext.Next]; yes {
 				proof.NodeRelationMap[nodeExist[ext]][0] = j
 			} else {
@@ -186,7 +189,7 @@ func Verify(rootHash []byte, key []byte, proof Proof)  bool {
 	}
 }
 
-func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[int]map[int]int) []byte{
+func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[int]map[int8]int) []byte{
 	/*
 	Recomputing the root hash of the trie (verifying the correctness) and verifying the completeness
 	*/
@@ -197,7 +200,7 @@ func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[i
 	}
 	if root, ok := nodeC.no.(*BranchNode); ok {
 		rebuildRelation(&nodeC, nodeList, relation)
-		node := nodeList[relation[nodeC.id][int(key[0] - 'A')]]
+		node := nodeList[relation[nodeC.id][int8(key[0] - 'A')]]
 		key = key[1:]
 		var latence []pendingPath
 		for {
@@ -228,6 +231,7 @@ func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[i
 				rebuildRelation(&node, nodeList, relation)
 				// check the unsatisfied branches are indeed unsatisfied
 				if len(key) == 0 {
+					//_, pendPaths := checkBranch(key, node, nodeList, relation)
 					right, pendPaths := checkBranch(key, node, nodeList, relation)
 					if !right {
 						return nil
@@ -242,6 +246,7 @@ func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[i
 					latence = latence[1:]
 					continue
 				} else {
+					//_, pendPaths := checkBranch(key, node, nodeList, relation)
 					right, pendPaths := checkBranch(key, node, nodeList, relation)
 					if !right {
 						return nil
@@ -249,7 +254,11 @@ func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[i
 					latence = append(latence, pendPaths...)
 					b, remaining := key[0], key[1:]
 					key = remaining
-					node = nodeList[relation[node.id][int(b - 'A')]]
+					if branch.Branches[b-'A'] != nil {
+						node = nodeList[relation[node.id][int8(b - 'A')]]
+					} else {
+						node = NodeCom{}
+					}
 					continue
 				}
 			}
@@ -293,12 +302,13 @@ func reComputeHash(key []byte, nodeC NodeCom, nodeList []NodeCom, relation map[i
 	return nil
 }
 
-func rebuildRelation(nodeC *NodeCom, nodeList []NodeCom, relation map[int]map[int]int) {
+func rebuildRelation(nodeC *NodeCom, nodeList []NodeCom, relation map[int]map[int8]int) {
 	/*
 	Restoring the children of the given node
 	 */
+	var i int8
 	if branch, ok := nodeC.no.(*BranchNode); ok {
-		for i:=0; i < BranchSize; i++ {
+		for i=0; i < BranchSize; i++ {
 			if branch.Branches[i] != nil {
 				index := relation[nodeC.id][i]
 				branch.Branches[i] = nodeList[index].no
@@ -315,19 +325,20 @@ func hashRoot(root Node) []byte{
 	return root.Hash()
 }
 
-func checkBranch(key []byte, node NodeCom, nodeList []NodeCom, relation map[int]map[int]int) (bool, []pendingPath) {
+func checkBranch(key []byte, node NodeCom, nodeList []NodeCom, relation map[int]map[int8]int) (bool, []pendingPath) {
 	/*
 	Checking whether the branch that needs to be added is empty
 	 */
 	if branch, yes:= node.no.(*BranchNode); yes {
-		var subBranches int
+		var subBranches int8
 		if len(key) == 0 {
 			subBranches = BranchSize
 		} else {
-			subBranches = len(branch.Branches[:key[0]-'A'])
+			subBranches = int8(len(branch.Branches[:key[0]-'A']))
 		}
 		var result []pendingPath
-		for i:=0; i < subBranches; i++ {
+		var i int8
+		for i=0; i < subBranches; i++ {
 			if branch.Branches[i] != nil {
 				if _, yes := nodeList[relation[node.id][i]].no.(HashNode); yes {
 					return false, nil
@@ -339,4 +350,27 @@ func checkBranch(key []byte, node NodeCom, nodeList []NodeCom, relation map[int]
 		return true, result
 	}
 	return false, nil
+}
+
+func (p *Proof) Size() int {
+	/*
+	Counting the size of the Proof
+	*/
+	var totalSize int
+	for _, node := range p.Nodes {
+		if leaf, ok := node.(*LeafNode); ok {
+			leafSize := len(leaf.Path) + len(leaf.Value)*8
+			totalSize = totalSize + leafSize
+		} else if branch, ok := node.(*BranchNode); ok {
+			branchSize := BranchSize*8 + len(branch.Value)*8
+			totalSize = totalSize + branchSize
+		} else if ext, ok := node.(*ExtensionNode); ok {
+			extSize := len(ext.Path) + 8
+			totalSize = totalSize + extSize
+		} else if hs, ok := node.(HashNode); ok {
+			hashSize := len(hs.hash)
+			totalSize = totalSize + hashSize
+		}
+	}
+	return totalSize
 }

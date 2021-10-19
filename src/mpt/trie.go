@@ -144,10 +144,15 @@ func (t *Trie) Insert(key []byte, value int) error {
 					newExt := NewExtensionNode(extRemainingKey, ext.Next)
 					branch.SetBranch(extBranchKey, newExt)
 				}
-				leafBranchKey, leafRemainingKey := key[0], key[1:]
-				newLeaf := NewLeafNode(leafRemainingKey, value)
-				branch.SetBranch(leafBranchKey, newLeaf)
-				*node = branch
+				if len(key) == 0 {
+					branch.SetValue(value)
+					*node = branch
+				} else {
+					leafBranchKey, leafRemainingKey := key[0], key[1:]
+					newLeaf := NewLeafNode(leafRemainingKey, value)
+					branch.SetBranch(leafBranchKey, newLeaf)
+					*node = branch
+				}
 				return nil
 			}
 			// third case: part matched
@@ -471,15 +476,4 @@ func ToBeAdd(key []byte, node BranchNode) []potentialPath {
 		result = append(result, p)
 	}
 	return result
-}
-
-func Test(node LeafNode) bool {
-	newLeaf := NewLeafNode(node.Path, node.Value)
-	newLeaf1 := NewLeafNode(node.Path, node.Value)
-	if newLeaf == newLeaf1 {
-		return true
-	}
-	fmt.Println(newLeaf)
-	fmt.Println(newLeaf1)
-	return false
 }

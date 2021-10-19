@@ -26,17 +26,90 @@ type Graph struct {
 	neiStr: statistic the one-hop neighborhood string for each vertex
 	 */
 
-	vertices []Vertex
+	vertices map[int]Vertex
 	adj map[int][]int
 	NeiStr map[string][]int
 	GHash []byte
 }
 
 
-func (g *Graph) LoadGraphFromTxt(fileName string) error {
+func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 	/*
 	loading the graph from txt file and saving it into an adjacency list adj, the subscripts start from 0
 	 */
+	g.adj = make(map[int][]int)
+	content, err := readTxtFile(fileName)
+	if err != nil {
+		fmt.Println("Read file error!", err)
+		return err
+	}
+	splitStr := " "
+	if find := strings.Contains(content[0], ","); find {
+		splitStr = ","
+	} else if find := strings.Contains(content[0], "	"); find {
+		splitStr = "	"
+	}
+	// determine whether one edge is one-way (flag = false) or two-way (flag = true)
+	var target string
+	flag := true
+	for i, line := range content {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if i == 0 {
+			edge := strings.Split(line, splitStr)
+			target = edge[1] + splitStr + edge[0]
+			continue
+		}
+		if line == target {
+			flag = false
+			break
+		}
+	}
+	if flag { // case1: two-way
+		for _, line := range content {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			edge := strings.Split(line, splitStr)
+			fr, err := strconv.Atoi(edge[0])
+			if err != nil {
+				return err
+			}
+			en, err := strconv.Atoi(edge[1])
+			if err!= nil {
+				return err
+			}
+			g.adj[fr] = append(g.adj[fr], en)
+			g.adj[en] = append(g.adj[en], fr)
+		}
+	} else { // case2: one-way
+		for _, line := range content {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			edge := strings.Split(line, splitStr)
+			fr, err := strconv.Atoi(edge[0])
+			if err != nil {
+				return err
+			}
+			en, err := strconv.Atoi(edge[1])
+			if err!= nil {
+				return err
+			}
+			g.adj[fr] = append(g.adj[fr], en)
+		}
+	}
+	return nil
+}
+
+func (g *Graph) LoadDireGraphFromTxt(fileName string) error {
+	/*
+		loading the graph from txt file and saving it into an adjacency list adj, the subscripts start from 0
+	*/
 
 	g.adj = make(map[int][]int)
 	content, err := readTxtFile(fileName)
@@ -44,12 +117,18 @@ func (g *Graph) LoadGraphFromTxt(fileName string) error {
 		fmt.Println("Read file error!", err)
 		return err
 	}
+	splitStr := " "
+	if find := strings.Contains(content[0], ","); find {
+		splitStr = ","
+	} else if find := strings.Contains(content[0], "	"); find {
+		splitStr = "	"
+	}
 	for _, line := range content {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		edge := strings.Split(line, " ")
+		edge := strings.Split(line, splitStr)
 		fr, err := strconv.Atoi(edge[0])
 		if err != nil {
 			return err
@@ -89,16 +168,14 @@ func (g *Graph) LoadGraphFromExcel(fileName string) error {
 	return nil
 }
 
-func (g *Graph) AssignLabel(fileName string) error {
+func (g *Graph) AssignLabel(labelFile string) error {
 	/*
-	randomly assign a label to each vertex or read the vertex's label from a txt file
-	then saving them into a list g.vertices
+	Assigning a label to each vertex
 	 */
-	var labelSet []byte
-	if fileName == "" {
-		labelSet = []byte{'A', 'B', 'C', 'D', 'E', 'F','G', 'H', 'I', 'J', 'K', 'L','M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}
-	} else {
-		content, err := readTxtFile(fileName)
+	g.vertices = make(map[int]Vertex)
+	labelSet := make(map[int]string)
+	if labelFile != "" {
+		content, err := readTxtFile(labelFile)
 		if err != nil {
 			fmt.Println("Read file error!", err)
 			return err
@@ -108,15 +185,16 @@ func (g *Graph) AssignLabel(fileName string) error {
 			if line == "" {
 				continue
 			}
-			labelSet = append(labelSet, line[0])
-			}
+			onePair := strings.Split(line, " ")
+			key, _ := strconv.Atoi(onePair[0])
+			labelSet[key] = onePair[1]
 		}
-	for i := 0; i < len(g.adj); i++ {
+	}
+	for k, _ := range g.adj {
 		var v Vertex
-		v.id = i
-		v.label = labelSet[i]
-		v.content = "lsy"
-		g.vertices = append(g.vertices, v)
+		v.id = k
+		v.label = []byte(labelSet[k])[0]
+		g.vertices[k] = v
 	}
 	return nil
 }
@@ -163,14 +241,6 @@ func (g *Graph) ComputingGHash() []byte {
 			accHashVal = xor(accHashVal, hashVal)
 		}
 	}
-	partHashVal := accHashVal
-	for i:=0; i<5; i++ {
-		partHashVal = xor(partHashVal, g.computingHashVal(g.vertices[i]))
-	}
-	wholeHashVal := partHashVal
-	for i:=0; i<5; i++ {
-		wholeHashVal = xor(wholeHashVal, g.computingHashVal(g.vertices[i]))
-	}
 	g.GHash = crypto.Keccak256(accHashVal)
 	return accHashVal
 }
@@ -196,7 +266,7 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	Obtaining all sub graphs that matched the given query graph in the data graph
 	 */
 	var result []map[int]int
-	expandId := getExpandQueryVertex(query.CQVList)
+	expandId := GetExpandQueryVertex(query.CQVList)
 	pendingVertex := query.CQVList[expandId]
 
 	for _, candid := range pendingVertex.Candidates {
@@ -435,7 +505,7 @@ func Product(matchedMap map[int][]int, res *[]map[int]int, qV []int, level int, 
 	}
 }
 
-func getExpandQueryVertex(qList []CandiQVertex) int {
+func GetExpandQueryVertex(qList []CandiQVertex) int {
 	/*
 	Computing the weights for each query vertex and choose the smallest
 	 */

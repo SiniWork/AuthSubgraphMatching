@@ -23,7 +23,7 @@ func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 	*/
 	var queryG QueryGraph
 	var query Graph
-	query.LoadGraphFromTxt(queryFile)
+	query.LoadUnGraphFromTxt(queryFile)
 	query.AssignLabel(queryLabelFile)
 	queryG.Adj = query.adj
 

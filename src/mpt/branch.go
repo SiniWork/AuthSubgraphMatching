@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-const BranchSize = 26
+const BranchSize = 4
 
 type BranchNode struct {
 	Branches [BranchSize]Node
@@ -54,8 +54,8 @@ func (b BranchNode) Hash() []byte {
 }
 
 func (b BranchNode) Raw() []interface{} {
-	hashes := make([]interface{}, BranchSize)
-	for i := 0; i < BranchSize-1; i++ {
+	hashes := make([]interface{}, BranchSize+1)
+	for i := 0; i < BranchSize; i++ {
 		if b.Branches[i] == nil {
 			hashes[i] = " "
 		} else {
@@ -67,7 +67,7 @@ func (b BranchNode) Raw() []interface{} {
 	for _, v := range b.Value {
 		valueStr = append(valueStr,strconv.Itoa(v))
 	}
-	hashes[BranchSize-1] = valueStr
+	hashes[BranchSize] = valueStr
 	return hashes
 }
 

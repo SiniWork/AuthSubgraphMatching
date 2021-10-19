@@ -4,26 +4,37 @@ import (
 	"Corgi/src/matching"
 	"Corgi/src/mpt"
 	"fmt"
+	"time"
 )
 
-func main() {
+/*
+part test
+ */
+//time1: phase 1 time
+//time2: phase 1 verify time
+//time3: phase 2 time
+//time4: phase 2 verify time
+func main(){
 
-	/*
-	graph test
-	 */
-	fmt.Println("----------------graph below--------------")
+	fmt.Println("----------------loading graph--------------")
 	g := new(matching.Graph)
-	g.LoadGraphFromTxt("./data/example1.txt")
-	g.AssignLabel("./data/example1_label.txt")
-	g.StatisticNeiStr()
-	//g.Print()
-	qG := matching.QueryPreProcessing("./data/query1.txt", "./data/query1_label.txt")
 
-	/*
-	mpt test
-	*/
-	fmt.Println("----------------trie below--------------")
-	fmt.Println("----------------building trie according to above graph--------------")
+	//g.LoadUnGraphFromTxt("./data/yeast.txt")
+	//g.AssignLabel("./data/yeast_label.txt")
+	//tool.CheckVerEdge("./data/yeast.txt")
+
+	//g.LoadUnGraphFromTxt("./data/human.txt")
+	//g.AssignLabel("./data/human_label.txt")
+
+	//g.LoadUnGraphFromTxt("./data/dblp.txt")
+	//g.AssignLabel("./data/dblp_label.txt")
+
+	g.LoadUnGraphFromTxt("./data/youtube.txt")
+	g.AssignLabel("./data/youtube_label.txt")
+
+	g.StatisticNeiStr()
+
+	fmt.Println("----------------building mpt--------------")
 	trie := mpt.NewTrie()
 	for k, v := range g.NeiStr {
 		byteKey := []byte(k)
@@ -32,78 +43,52 @@ func main() {
 		}
 	}
 
-	//fmt.Println("--------------mpt proving test----------------------------------")
-	//rootHash, _ := trie.HashRoot()
-	//fmt.Println(rootHash)
-	//key := "CBC"
-	//_, VO1, _ := trie.Prove([]byte(key))
-	//fmt.Println(mpt.Verify(rootHash, []byte(key), VO1))
+	fmt.Println("----------------loading query--------------")
+	qG := matching.QueryPreProcessing("./data/query1.txt", "./data/query1_label.txt")
 
-	fmt.Println("----------------matching proving test------------------------------")
-	fmt.Println("----------------getting candidates for each query vertex-----------")
+	//fmt.Println("----------------generating VO1 then verifying it--------------") // get time3 and VO1 size
+	//qExId := matching.GetExpandQueryVertex(qG.CQVList)
+	//fmt.Println("query vertex string: ", string(qG.CQVList[qExId].Base.OneHopStr))
+	//_, VO1, _ := trie.Prove(qG.CQVList[qExId].Base.OneHopStr)
+	//rootH, _ := trie.HashRoot()
+	//startT3 := time.Now()
+	//fmt.Println(mpt.Verify(rootH, qG.CQVList[qExId].Base.OneHopStr, VO1))
+	//time3 := time.Since(startT3)
+	//fmt.Println("the number of nodes in VO1: ", len(VO1.Nodes))
+	//fmt.Println("the size of VO1: ", VO1.Size(), "Byte")
+	//fmt.Println("the time of verifying VO1 is: ", time3)
+
+	fmt.Println("----------------generating candidates for each query vertex--------------") // get time1
 	var candiList [][]int
-	for _, each := range qG.CQVList {
+	startT1 := time.Now()
+	for i, each := range qG.CQVList {
 		each.Candidates = trie.GetCandidate(each.Base.OneHopStr)
-		//fmt.Println(each.Base.Id, each.Candidates)
+		fmt.Println("present string: ", string(qG.CQVList[i].Base.OneHopStr), ", its candidates: ", len(each.Candidates))
 		candiList = append(candiList, each.Candidates)
 	}
+	time1 := time.Since(startT1)
+	fmt.Println("the time of phase1 is: ", time1)
 	matching.AttachCandidate(candiList, &qG)
 
-	//fmt.Println(g.ComputingGHash())
+	fmt.Println("----------------generating matched graphs for query graph then verifying VO2--------------") // get time2 and time4 as well as VO2 size
+	g.ComputingGHash()
+	startT2 := time.Now()
 	VO2 := g.Prove(qG)
+	time2 := time.Since(startT2)
+	fmt.Println("the time of phase2 is: ", time2)
+	fmt.Println("the number of evidence: ", len(VO2.Evidence))
+	fmt.Println("the size of VO2: ", VO2.Size(), "Byte")
+	startT4 := time.Now()
 	fmt.Println(matching.Verify(VO2, g.GHash, qG))
+	time4 := time.Since(startT4)
+	fmt.Println("the time of verifying VO2 is: ", time4)
 
-
-
-	/*
-	matching test
-	*/
-	//fmt.Println("----------------matching below--------------")
-	//fmt.Println("----------------getting matched graph for query graph--------------")
-	//g.ObtainMatchedGraphs(qG)
-	//matched := g.ObtainMatchedGraphs(qG)
-	//fmt.Println(matched)
-
-
-
-
-
-
-	//fmt.Println("----------------------finding test---------------------------------")
-	//key := "CBC"
-	//v2, _ := trie.GetExactOne([]byte(key))
-	////v2 := trie.GetCandidate([]byte(key))
-	//fmt.Println(v2)
-
-	//fmt.Println("----------------------insert and find test-------------------------")
-	// the range of key: A-Z
-	// test 1
-	//trie.Insert([]byte{'A', 'B', 'C', 'D'}, "hello")
-	//trie.Insert([]byte{'A', 'B'}, "li")
-	//trie.Insert([]byte{'A', 'B', 'C'}, "world")
-	//trie.Insert([]byte{'B', 'B', 'C', 'D'}, "si")
-	//trie.Insert([]byte{'C', 'B', 'C'}, "yu")
-	//v2, _ := trie.GetExactOne([]byte{'B', 'B', 'C', 'D'})
-	//v2 := trie.GetCandidate([]byte{'A', 'B'})
-	//fmt.Println(v2)
-
-	// test 2
-	//trie.Insert([]byte{'A', 'B'}, "hello")
-	//trie.Insert([]byte{'B', 'B', 'C'}, "world")
-	//trie.Insert([]byte{'B', 'B', 'C', 'D'}, "siyu")
-	//v2, _ := trie.GetExactOne([]byte{'B', 'B', 'C'})
-	//v2, _ := trie.GetExactOne([]byte{'B', 'B', 'C'})
-	//fmt.Println(v2)
-
-	// test 3
-	//trie.Insert([]byte{'A', 'B', 'C'}, "hello")
-	//trie.Insert([]byte{'B', 'B', 'C'}, "world")
-	//trie.Insert([]byte{'C', 'B', 'C'}, "siyu")
-	//v2, _ := trie.GetExactOne([]byte{'C', 'B', 'C'})
-	//fmt.Println(v2)
 }
 
 
-// other test
+/*
+other test
+ */
 //func main() {
+//	tool.ConfigLabelForG("./data/dblp.txt", "./data/dblp_label.txt")
 //}
