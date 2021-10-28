@@ -15,6 +15,7 @@ type CandiQVertex struct {
 type QueryGraph struct {
 	CQVList []CandiQVertex
 	Adj map[int][]int
+	Matrix map[int]map[int]bool
 }
 
 func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
@@ -26,6 +27,7 @@ func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 	query.LoadUnGraphFromTxt(queryFile)
 	query.AssignLabel(queryLabelFile)
 	queryG.Adj = query.adj
+	queryG.Matrix = query.matrix
 
 	for _, v := range query.vertices {
 		qV := QVertex{Id: v.id, Label: v.label}

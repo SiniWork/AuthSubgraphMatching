@@ -8,9 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"io/ioutil"
 	"path"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Vertex struct {
@@ -28,6 +30,7 @@ type Graph struct {
 
 	vertices map[int]Vertex
 	adj map[int][]int
+	matrix map[int]map[int]bool
 	NeiStr map[string][]int
 	GHash []byte
 }
@@ -38,6 +41,7 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 	loading the graph from txt file and saving it into an adjacency list adj, the subscripts start from 0
 	 */
 	g.adj = make(map[int][]int)
+	g.matrix = make(map[int]map[int]bool)
 	content, err := readTxtFile(fileName)
 	if err != nil {
 		fmt.Println("Read file error!", err)
@@ -49,7 +53,7 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 	} else if find := strings.Contains(content[0], "	"); find {
 		splitStr = "	"
 	}
-	// determine whether one edge is one-way (flag = false) or two-way (flag = true)
+	// determine edge is one-way (flag = false) or two-way (flag = true)
 	var target string
 	flag := true
 	for i, line := range content {
@@ -84,6 +88,15 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 			}
 			g.adj[fr] = append(g.adj[fr], en)
 			g.adj[en] = append(g.adj[en], fr)
+			// build matrix
+			if g.matrix[fr] == nil {
+				g.matrix[fr] = make(map[int]bool)
+			}
+			if g.matrix[en] == nil {
+				g.matrix[en] = make(map[int]bool)
+			}
+			g.matrix[fr][en] = true
+			g.matrix[en][fr] = true
 		}
 	} else { // case2: one-way
 		for _, line := range content {
@@ -101,6 +114,11 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 				return err
 			}
 			g.adj[fr] = append(g.adj[fr], en)
+			// build matrix
+			if g.matrix[fr] == nil {
+				g.matrix[fr] = make(map[int]bool)
+			}
+			g.matrix[fr][en] = true
 		}
 	}
 	return nil
@@ -270,10 +288,14 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	pendingVertex := query.CQVList[expandId]
 
 	for _, candid := range pendingVertex.Candidates {
-		//fmt.Println(candid)
+		fmt.Println("processing: ", candid, "degree is: ", len(g.adj[candid]))
 		res := g.matchingV1(candid, expandId, query)
+		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!the number of generating results: ", len(res))
 		result = append(result, res...)
 	}
+
+	//fmt.Println(len(g.matchingV1(643, expandId, query)))
+
 	return result
 }
 
@@ -294,6 +316,59 @@ func (g *Graph) matchingV1(candidateId, expandQId int, query QueryGraph) []map[i
 	return result
 }
 
+func (g *Graph) ObtainMatchedGraphsCon(query QueryGraph) []map[int]int {
+	/*
+		Obtaining all sub graphs that matched the given query graph in the data graph
+	*/
+	var result []map[int]int
+	expandId := GetExpandQueryVertex(query.CQVList)
+	pendingVertex := query.CQVList[expandId]
+	lenT := len(pendingVertex.Candidates)
+
+	cpus := runtime.NumCPU()
+	runtime.GOMAXPROCS(cpus)
+	chs := make([]chan []map[int]int, cpus)
+	start := 0
+	interval := lenT / cpus
+	for i := 0; i < len(chs); i++ {
+		chs[i] = make(chan []map[int]int, 1)
+		task := pendingVertex.Candidates[start:start+interval]
+		start = start + interval
+		qExpand := expandId
+		qG := query
+		go g.matchingV1Con(task, qExpand, qG, chs[i])
+	}
+	for _, ch := range chs {
+		res := <- ch
+		result = append(result, res...)
+	}
+	return result
+}
+
+func (g *Graph) matchingV1Con(candidateIdList []int, expandQId int, query QueryGraph, res chan []map[int]int)  {
+	/*
+		Expanding the data graph from the given candidate vertex to obtain matched results
+	*/
+	startT1 := time.Now()
+	var resultA []map[int]int
+	for _, id := range candidateIdList {
+		//fmt.Println(id)
+		var resultP []map[int]int
+		visited := g.setVisited(id, len(query.CQVList[expandQId].Base.ExpandLayer))
+
+		expL := 1
+		var gVer []int
+		gVer = append(gVer, id)
+		preMatched := make(map[int]int)
+		preMatched[expandQId] = id
+		g.matchingV2(expL, gVer, expandQId, query, visited, preMatched, &resultP)
+		resultA = append(resultA, resultP...)
+	}
+	res <- resultA
+	time1 := time.Since(startT1)
+	fmt.Println("the time of phase2 is: ", time1)
+}
+
 func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, visited []map[int]bool, preMatched map[int]int, res *[]map[int]int) {
 	/*
 	expT: still need expanding times
@@ -308,7 +383,8 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 		return
 	}
 
-	// get the vertices of the current layer of the data graph
+	// 1. get the vertices of the current layer of the data graph
+	ts1 := time.Now()
 	var gPresentVer []int
 	repeat := make(map[int]bool)
 	for _, k := range gVer{
@@ -319,8 +395,12 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 			}
 		}
 	}
+	t1 := time.Since(ts1)
+	timeMax := t1
+	tFlag := 1
 
-	// get the vertices of the current layer of the query graph and the candidates of the vertices
+	// 2. get the vertices of the current layer of the query graph and the candidates of the vertices
+	ts2 := time.Now()
 	qPresentVer := query.CQVList[expQId].Base.ExpandLayer[expL]
 	qVerCandi := make(map[int]map[int]bool)
 	for _, qV := range qPresentVer {
@@ -330,8 +410,14 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 		}
 		qVerCandi[qV] = candi
 	}
+	t2 := time.Since(ts2)
+	if t2 > timeMax {
+		timeMax = t2
+		tFlag = 2
+	}
 
-	// classify the vertices of the current layer of the data graph according to query candidates map
+	// 3. classify the vertices of the current layer of the data graph according to query candidates map
+	ts3 := time.Now()
 	matched := make(map[int][]int)
 	//fmt.Println("gPresentVer: ", gPresentVer)
 	for _, gV := range gPresentVer {
@@ -341,26 +427,47 @@ func (g *Graph) matchingV2(expL int, gVer []int, expQId int, query QueryGraph, v
 			}
 		}
 	}
+	t3 := time.Since(ts3)
+	if t3 > timeMax {
+		timeMax = t3
+		tFlag = 3
+	}
 	// if no matched then return
 	//fmt.Println("matched: ", matched)
 	if len(matched) < len(qPresentVer) {
 		return
 	}
 
-	// obtain media results and filter these results and present layer vertices
+	// 4. obtain media results
+	ts4 := time.Now()
 	var media []map[int]int
 	oneMap := make(map[int]int)
 	Product(matched, &media, qPresentVer, 0, oneMap)
-	//fmt.Println("media result: ", media)
+	fmt.Println("media result: ", len(media))
+	t4 := time.Since(ts4)
+	if t4 > timeMax {
+		timeMax = t4
+		tFlag = 4
+	}
+
+	// 5. filter these results as well as present layer vertices
+	ts5 := time.Now()
 	var filterMedia []map[int]int
 	filterVer := g.Filter(preMatched, media, &filterMedia, query.Adj)
 	//fmt.Println("present result: ", filterMedia)
+	t5 := time.Since(ts5)
+	if t5 > timeMax {
+		timeMax = t5
+		tFlag = 5
+	}
+	fmt.Println("the most time consuming step is: ", tFlag, "the time is: ", timeMax)
+
 	// if present layer has no media result then return
 	if len(filterMedia) == 0 {
 		return
 	}
 
-	// if present layer is the last layer then add the filterMedia into res
+	// 6. if present layer is the last layer then add the filterMedia into res
 	if expL == len(query.CQVList[expQId].Base.ExpandLayer) {
 		*res = append(*res, filterMedia...)
 		return
@@ -442,6 +549,79 @@ func (g *Graph) setVisited(candidateId, layers int) []map[int]bool {
 		res = append(res, visited)
 	}
 	return res
+}
+
+func (g *Graph)ObtainCurRes(matchedMap map[int][]int, query QueryGraph, qVer []int) {
+	/*
+		Obtain current layer's matched results
+	*/
+
+	//var matchedRes []map[int]int
+
+	// find all edges in current layer
+	qVerCurAdj := make(map[int][]int)
+	qVDegree := make(map[int]int) // sort it depend on degree
+	for i:=0; i<len(qVer); i++ {
+		for j:=i+1; j<len(qVer); j++ {
+			if query.Matrix[qVer[i]][qVer[j]] {
+				qVerCurAdj[qVer[i]] = append(qVerCurAdj[qVer[i]], qVer[j])
+			}
+		}
+		qVDegree[qVer[i]] = len(qVerCurAdj[qVer[i]])
+	}
+
+	// using BFS find all connected part, meanwhile generating part results
+	visited := make(map[int]bool)
+	var queue []int
+	var partResults []map[int][]int
+	for k, _:= range qVDegree {
+		if !visited[k] {
+			visited[k] = true
+			queue = append(queue, k)
+			onePartRes := make(map[int][]int)
+			onePartRes[k] = matchedMap[k]
+			sort.Ints(onePartRes[k])
+			for len(queue) != 0 {
+				v := queue[0]
+				queue = queue[1:]
+				for _, n := range qVerCurAdj[v] {
+					if !visited[n] {
+						visited[n] = true
+						queue = append(queue, n)
+						g.join(onePartRes, n, matchedMap[n], qVerCurAdj[n])
+					}
+				}
+			}
+			partResults = append(partResults, onePartRes)
+		}
+	}
+	// combine all part results
+}
+func (g *Graph)join(curRes map[int][]int, v2 int, v2Candi, v2Nei []int) {
+	/*
+	join the vertex v2 to current results
+	 */
+
+	for _, n := range v2Nei {
+		if _, ok := curRes[n]; ok {
+			newCurRes := make(map[int][]int)
+			for i, c1 := range curRes[n] {
+				for _, c2 := range v2Candi {
+					if g.matrix[c1][c2]{
+						for k, _ := range curRes {
+							newCurRes[k] = append(newCurRes[k], curRes[k][i])
+						}
+						if _, yes := curRes[v2]; !yes {
+							newCurRes[v2] = append(newCurRes[v2], c2)
+						} else {
+							newCurRes[v2][i] = c2
+						}
+					}
+				}
+			}
+			curRes = newCurRes
+		}
+	}
 }
 
 func checkDuplicateVal(mp map[int]int) bool {
