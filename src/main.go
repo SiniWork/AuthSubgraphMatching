@@ -29,8 +29,8 @@ func main(){
 	//g.LoadUnGraphFromTxt("./data/wordnet.txt")
 	//g.AssignLabel("./data/wordnet_label.txt")
 
-	g.LoadUnGraphFromTxt("./data/dblp.txt")
-	g.AssignLabel("./data/dblp_label.txt")
+	//g.LoadUnGraphFromTxt("./data/dblp.txt")
+	//g.AssignLabel("./data/dblp_label.txt")
 
 	//g.LoadUnGraphFromTxt("./data/amazon.txt")
 	//g.AssignLabel("./data/amazon_label.txt")
@@ -38,8 +38,8 @@ func main(){
 	//g.LoadUnGraphFromTxt("./data/youtube.txt")
 	//g.AssignLabel("./data/youtube_label.txt")
 
-	//g.LoadUnGraphFromTxt("./data/livejournal.txt")
-	//g.AssignLabel("./data/livejournal_label.txt")
+	g.LoadUnGraphFromTxt("./data/livejournal.txt")
+	g.AssignLabel("./data/livejournal_label.txt")
 
 	g.StatisticNeiStr()
 
@@ -71,9 +71,9 @@ func main(){
 	fmt.Println("----------------generating candidates for each query vertex--------------") // get time1
 	var candiList [][]int
 	startT1 := time.Now()
-	for i, each := range qG.CQVList {
+	for k, each := range qG.CQVList {
 		each.Candidates = trie.GetCandidate(each.Base.OneHopStr)
-		fmt.Println("present string: ", string(qG.CQVList[i].Base.OneHopStr), ", its candidates: ", len(each.Candidates))
+		fmt.Println("present string: ", string(qG.CQVList[k].Base.OneHopStr), ", its candidates: ", len(each.Candidates))
 		candiList = append(candiList, each.Candidates)
 	}
 	time1 := time.Since(startT1)
@@ -82,7 +82,8 @@ func main(){
 
 	fmt.Println("----------------optimizing test----------------")
 	startT := time.Now()
-	g.ObtainMatchedGraphs(qG)
+	fmt.Println("the number of results: ", len(g.ObtainMatchedGraphs(qG)))
+	//fmt.Println(len(g.ConObtainMatchedGraphs(qG)))
 	tm := time.Since(startT)
 	fmt.Println("time: ", tm)
 
@@ -107,5 +108,5 @@ other test
 */
 //func main() {
 //	//tool.ConfigLabelForG("./data/livejournal.txt", "./data/livejournal_label.txt")
-//	fmt.Println(tool.CheckGraphLabel("./data/livejournal.txt", "./data/livejournal_label.txt"))
+//	//fmt.Println(tool.CheckGraphLabel("./data/livejournal.txt", "./data/livejournal_label.txt"))
 //}

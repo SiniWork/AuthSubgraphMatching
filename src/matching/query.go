@@ -1,5 +1,9 @@
 package matching
 
+import (
+	"sort"
+)
+
 type QVertex struct {
 	Id int
 	Label byte
@@ -10,6 +14,7 @@ type QVertex struct {
 type CandiQVertex struct {
 	Base QVertex
 	Candidates []int
+	CandidateB map[int]bool
 }
 
 type QueryGraph struct {
@@ -29,7 +34,13 @@ func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 	queryG.Adj = query.adj
 	queryG.Matrix = query.matrix
 
-	for _, v := range query.vertices {
+	var temp []int
+	for k, _ := range query.vertices {
+		temp = append(temp, k)
+	}
+	sort.Ints(temp)
+	for _, i := range temp {// bug in here, the ordering of vertices is not consist
+		v := query.vertices[i]
 		qV := QVertex{Id: v.id, Label: v.label}
 		qV.OneHopStr = append(qV.OneHopStr, v.label)
 		for _, nei := range query.adj[v.id] {
@@ -43,8 +54,12 @@ func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 }
 
 func AttachCandidate(candiList [][]int, qG *QueryGraph) {
-	for i, candi := range candiList {
-		qG.CQVList[i].Candidates = candi
+	for k, candiL := range candiList {
+		qG.CQVList[k].Candidates = candiL
+		qG.CQVList[k].CandidateB = make(map[int]bool)
+		for _, v := range candiL {
+			qG.CQVList[k].CandidateB[v] = true
+		}
 	}
 }
 

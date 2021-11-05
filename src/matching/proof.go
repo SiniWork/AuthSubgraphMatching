@@ -32,7 +32,7 @@ func (g *Graph) Prove(query QueryGraph) Proof {
 	layers := len(pendingVertex.Base.ExpandLayer)
 	for _, candid := range pendingVertex.Candidates {
 		aux, groupHash := g.getAuxiliaryInfo(candid, layers)
-		res := g.matchingV1(candid, expandId, query)
+		res := g.expandOneVertexV2(candid, expandId, query)
 		VO.Evidence[candid] = OneGroupProof{MatchedRes: res, Aux: aux}
 		VO.RemainGHash = xor(VO.RemainGHash, groupHash)
 	}
