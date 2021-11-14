@@ -289,13 +289,18 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	expandId := GetExpandQueryVertex(query.CQVList)
 	pendingVertex := query.CQVList[expandId]
 	sort.Ints(pendingVertex.Candidates)
+	fmt.Println("the number of candidates: ", len(pendingVertex.Candidates))
+	zero := 0
 	for _, candid := range pendingVertex.Candidates {
 		//fmt.Println("processing: ", candid, "degree is: ", len(g.adj[candid]))
 		//res := g.expandOneVertexV1(candid, expandId, query)
 		res := g.expandOneVertexV2(candid, expandId, query)
+		if len(res) == 0 {
+			zero = zero + 1
+		}
 		result = append(result, res...)
 	}
-
+	fmt.Println("the number of false vertices: ", zero)
 	return result
 }
 

@@ -1,7 +1,9 @@
 package matching
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
+	"reflect"
 )
 
 
@@ -10,13 +12,13 @@ type AuxiliaryInfo struct {
 	adj map[int][]int
 }
 
-type OneGroupProof struct {
+type OneVertexProof struct {
 	MatchedRes []map[int]int
 	Aux AuxiliaryInfo
 }
 
 type Proof struct {
-	Evidence map[int]OneGroupProof
+	Evidence map[int]OneVertexProof
 	RemainGHash []byte
 }
 
@@ -28,15 +30,121 @@ func (g *Graph) Prove(query QueryGraph) Proof {
 	VO.RemainGHash = g.ComputingGHash()
 	expandId := GetExpandQueryVertex(query.CQVList)
 	pendingVertex := query.CQVList[expandId]
-	VO.Evidence = make(map[int]OneGroupProof)
-	layers := len(pendingVertex.Base.ExpandLayer)
+	VO.Evidence = make(map[int]OneVertexProof)
 	for _, candid := range pendingVertex.Candidates {
-		aux, groupHash := g.getAuxiliaryInfo(candid, layers)
-		res := g.expandOneVertexV2(candid, expandId, query)
-		VO.Evidence[candid] = OneGroupProof{MatchedRes: res, Aux: aux}
-		VO.RemainGHash = xor(VO.RemainGHash, groupHash)
+		oneVerProof, subGHash := g.authExpandOneVertex(candid, expandId, query)
+		VO.Evidence[candid] = oneVerProof
+		VO.RemainGHash = xor(VO.RemainGHash, subGHash)
 	}
 	return VO
+}
+
+func (g *Graph) authExpandOneVertex(candidateId, expandQId int, query QueryGraph) (OneVertexProof, []byte) {
+	/*
+		Expanding the data graph from the given candidate vertex to obtain matched results and verification objects
+	*/
+	var oneVerProof OneVertexProof
+	expL := 1
+	preMatched := make(map[int]int)
+	preMatched[expandQId] = candidateId
+	oneVerProof.Aux.adj = make(map[int][]int)
+	oneVerProof.Aux.adj[candidateId] = g.adj[candidateId]
+	oneVerProof.Aux.vertexList = make(map[int]Vertex)
+	g.authMatching(expL, expandQId, query, preMatched, &oneVerProof)
+
+	subGHash := g.computingHashVal(g.vertices[candidateId])
+	for v, l := range oneVerProof.Aux.adj {
+		if v != candidateId {
+			subGHash = xor(subGHash, g.computingHashVal(g.vertices[v]))
+		}
+		for _, e := range l {
+			oneVerProof.Aux.vertexList[e] = g.vertices[e]
+		}
+	}
+	return oneVerProof, subGHash
+}
+
+func (g *Graph) authMatching(expL int, expQId int, query QueryGraph, preMatched map[int]int, oneVer *OneVertexProof){
+	/*
+		expT: still need expanding times
+		gVer: the set of vertices that need to be expanded
+		expQId: the starting expansion query vertex
+		preMatched: already matched part
+		res: save the result
+	*/
+	if expL > len(query.CQVList[expQId].Base.ExpandLayer) {
+		return
+	}
+	// 1. get the query vertices of the current layer as well as each vertex's candidate set
+	qPresentVer := query.CQVList[expQId].Base.ExpandLayer[expL]
+
+	// 2. get the graph vertices of the current layer and classify them
+	classes := make(map[int][]int)
+	visited := make(map[int]bool)
+	for _, v := range preMatched {
+		visited[v] = true
+	}
+	var gVer []int // the graph vertices need to be expanded in current layer
+	if expL == 1 {
+		gVer = append(gVer, preMatched[expQId])
+	} else {
+		for _, q := range query.CQVList[expQId].Base.ExpandLayer[expL-1] {
+			gVer = append(gVer, preMatched[q])
+		}
+	}
+	repeat := make(map[int]bool)  // avoid visited repeat vertex in current layer
+	for _, v := range gVer { // expand each graph vertex of current layer
+		for _, n := range g.adj[v] {
+			if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
+				oneVer.Aux.adj[n] = g.adj[n]
+				repeat[n] = true
+				for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
+					flag := true
+					if query.CQVList[c].CandidateB[n] { // graph vertex n may belong to the candidate set of query vertex c
+						for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
+							if query.Matrix[c][pre] && !g.matrix[n][preMatched[pre]] { // not consist
+								flag = false
+								break
+							}
+						}
+						if flag { // graph vertex n indeed belong to the candidate set of query vertex c
+							classes[c] = append(classes[c], n)
+						}
+					}
+				}
+			}
+		}
+	}
+	// if one of query vertices' candidate set is empty then return
+	if len(classes) < len(qPresentVer) {
+		return
+	}
+
+	// 3. obtain current layer's matched results
+	curRes := g.ObtainCurRes(classes, query, qPresentVer)
+	// if present layer has no media result then return
+	if len(curRes) == 0 {
+		return
+	}
+
+	// 4. combine current layer's result with pre result
+	totalRes := curRes
+	for _, cur := range totalRes {
+		for k, v := range preMatched {
+			cur[k] = v
+		}
+	}
+
+	// 5. if present layer is the last layer then add the filterMedia into res
+	if expL == len(query.CQVList[expQId].Base.ExpandLayer) {
+		oneVer.MatchedRes = append(oneVer.MatchedRes, totalRes...)
+		return
+	} else {
+		// else continue matching
+		for _, eachM := range totalRes {
+			g.authMatching(expL+1, expQId, query, eachM, oneVer)
+		}
+	}
 }
 
 func (g *Graph) getAuxiliaryInfo(start, layers int) (AuxiliaryInfo, []byte) {
@@ -83,14 +191,15 @@ func Verify(proof Proof, gHash []byte, query QueryGraph) bool {
 	 */
 	var newGHashVal []byte
 	newGHashVal = proof.RemainGHash
-	for candi, oneGroup := range proof.Evidence {
-		if !oneGroup.checkingRes(candi, query) {
+	for candi, oneVertex := range proof.Evidence {
+		if !oneVertex.checkingRes(candi, query) {
 			return false
 		}
-		newGHashVal = xor(newGHashVal, oneGroup.Aux.getSubGraphHash())
+		newGHashVal = xor(newGHashVal, oneVertex.Aux.getSubGraphHash())
 	}
 	newGHash := crypto.Keccak256(newGHashVal)
 	if string(gHash) != string(newGHash) {
+		fmt.Println("bug in here")
 		return false
 	}
 	return true
@@ -102,7 +211,7 @@ func (au *AuxiliaryInfo) getSubGraphHash() []byte {
 	 */
 	var subHashVal []byte
 	i := 0
-	for k := range au.adj {     // bug in here
+	for k := range au.adj {
 		if i == 0 {
 			subHashVal = au.getOneVerHash(k)
 			i++
@@ -121,7 +230,37 @@ func (au *AuxiliaryInfo) getOneVerHash(vId int) []byte {
 	return crypto.Keccak256(outXor)
 }
 
-func (g *OneGroupProof) reMatching(expL int, gVer []int, expQId int, query QueryGraph, visited []map[int]bool, preMatched map[int]int, res *[]map[int]int) {
+func (g *OneVertexProof) checkingRes(candidate int, query QueryGraph) bool {
+	/*
+	Checking whether the reMatching results are the same as received results
+	 */
+	var result []map[int]int
+	expandQId := GetExpandQueryVertex(query.CQVList)
+	expL := 1
+	preMatched := make(map[int]int)
+	preMatched[expandQId] = candidate
+	matrix := make(map[int]map[int]bool)
+	for k, l := range g.Aux.adj {
+		matrix[k] = make(map[int]bool)
+		for _, v := range l {
+			matrix[k][v] = true
+		}
+	}
+	g.reMatching(expL, expandQId, query, preMatched, matrix, &result)
+
+	if len(result) != len(g.MatchedRes) {
+		return false
+	} else {
+		for i:=0; i<len(result); i++ {
+			if !reflect.DeepEqual(result[i], g.MatchedRes[i]){
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (g *OneVertexProof) reMatching1(expL int, gVer []int, expQId int, query QueryGraph, visited []map[int]bool, preMatched map[int]int, res *[]map[int]int) {
 	/*
 		expT: still need expanding times
 		gVer: the set of vertices that need to be expanded
@@ -194,67 +333,186 @@ func (g *OneGroupProof) reMatching(expL int, gVer []int, expQId int, query Query
 	} else {
 		// else continue matching
 		for i, eachM := range filterMedia {
-			g.reMatching(expL+1, filterVer[i], expQId, query, visited, eachM, res)
+			g.reMatching1(expL+1, filterVer[i], expQId, query, visited, eachM, res)
 		}
 	}
 }
 
-func (g *OneGroupProof) checkingRes(candidate int, query QueryGraph) bool {
+func (g *OneVertexProof) reMatching(expL int, expQId int, query QueryGraph, preMatched map[int]int, matrix map[int]map[int]bool, res *[]map[int]int){
 	/*
-	Checking whether the reMatching results are the same as received results
-	 */
-	var result []map[int]int
-	expandQId := GetExpandQueryVertex(query.CQVList)
-	visited := g.setVisited(candidate, len(query.CQVList[expandQId].Base.ExpandLayer))
-	expL := 1
-	var gVer []int
-	gVer = append(gVer, candidate)
-	preMatched := make(map[int]int)
-	preMatched[expandQId] = candidate
-	g.reMatching(expL, gVer, expandQId, query, visited, preMatched, &result)
-
-	if len(result) != len(g.MatchedRes) {
-		return false
-	} else {
-		//for i:=0; i<len(result); i++ {
-		//	if !reflect.DeepEqual(result[i], g.MatchedRes[i]){
-		//		return false
-		//	}
-		//}
-	}
-	return true
-}
-
-func (g *OneGroupProof) setVisited(candidate, layers int) []map[int]bool{
-	/*
-		Expanding 'layer' times from the given start vertex 'candidateID', and setting the visited status for the vertices of layer
+		expT: still need expanding times
+		expQId: the starting expansion query vertex
+		preMatched: already matched part
+		res: save the result
 	*/
-	var res []map[int]bool
-	visi := make(map[int]bool)
-	visi[candidate] = true
-	res = append(res, visi)
+	if expL > len(query.CQVList[expQId].Base.ExpandLayer) {
+		return
+	}
+	// 1. get the query vertices of the current layer as well as each vertex's candidate set
+	qPresentVer := query.CQVList[expQId].Base.ExpandLayer[expL]
 
-	hopVertices := make(map[int][]int)
-	hopVertices[0] = append(hopVertices[0], candidate)
-	for hop:=0; hop < layers; hop++ {
-		visited := make(map[int]bool)
-		for _, k := range hopVertices[hop]{
-			for _, j := range g.Aux.adj[k] {
-				if !res[hop][j] {
-					visited[j] = true
-					hopVertices[hop+1] = append(hopVertices[hop+1], j)
+	// 2. get the graph vertices of the current layer and classify them
+	classes := make(map[int][]int)
+	visited := make(map[int]bool)
+	for _, v := range preMatched {
+		visited[v] = true
+	}
+	var gVer []int // the graph vertices need to be expanded in current layer
+	if expL == 1 {
+		gVer = append(gVer, preMatched[expQId])
+	} else {
+		for _, q := range query.CQVList[expQId].Base.ExpandLayer[expL-1] {
+			gVer = append(gVer, preMatched[q])
+		}
+	}
+	repeat := make(map[int]bool)  // avoid visited repeat vertex in current layer
+	for _, v := range gVer { // expand each graph vertex of current layer
+		for _, n := range g.Aux.adj[v] {
+			if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
+				repeat[n] = true
+				for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
+					flag := true
+					if query.CQVList[c].CandidateB[n] { // graph vertex n may belong to the candidate set of query vertex c
+						for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
+							if query.Matrix[c][pre] && !matrix[n][preMatched[pre]] { // not consist
+								flag = false
+								break
+							}
+						}
+						if flag { // graph vertex n indeed belong to the candidate set of query vertex c
+							classes[c] = append(classes[c], n)
+						}
+					}
 				}
 			}
 		}
-		for k, v := range res[hop] {
-			visited[k] = v
-		}
-		res = append(res, visited)
 	}
-	return res
+	// if one of query vertices' candidate set is empty then return
+	if len(classes) < len(qPresentVer) {
+		return
+	}
+
+	// 3. obtain current layer's matched results
+	curRes := g.reObtainCurRes(classes, query, qPresentVer, matrix)
+	// if present layer has no media result then return
+	if len(curRes) == 0 {
+		return
+	}
+
+	// 4. combine current layer's result with pre result
+	totalRes := curRes
+	for _, cur := range totalRes {
+		for k, v := range preMatched {
+			cur[k] = v
+		}
+	}
+
+	// 5. if present layer is the last layer then add the filterMedia into res
+	if expL == len(query.CQVList[expQId].Base.ExpandLayer) {
+		*res = append(*res, totalRes...)
+		return
+	} else {
+		// else continue matching
+		for _, eachM := range totalRes {
+			g.reMatching(expL+1, expQId, query, eachM, matrix, res)
+		}
+	}
 }
 
-func (g *OneGroupProof) filter(preMatched map[int]int, raw []map[int]int, fine *[]map[int]int, qAdj map[int][]int) [][]int {
+func (g *OneVertexProof) reObtainCurRes(classes map[int][]int, query QueryGraph, qVer []int, matrix map[int]map[int]bool) []map[int]int {
+	/*
+		Obtain current layer's matched results
+	*/
+
+	var matchedRes []map[int]int
+
+	// find all edges between query vertices in current layer
+	qVerCurAdj := make(map[int][]int)
+	for i:=0; i<len(qVer); i++ {
+		qVerCurAdj[qVer[i]] = []int{}
+		for j:=0; j<len(qVer); j++ {
+			if query.Matrix[qVer[i]][qVer[j]] {
+				qVerCurAdj[qVer[i]] = append(qVerCurAdj[qVer[i]], qVer[j])
+			}
+		}
+	}
+
+	// using BFS find all connected part, meanwhile generating part results
+	visited := make(map[int]bool)
+	var queue []int
+	var partResults []map[int][]int
+	for _, k:= range qVer {
+		if !visited[k] {
+			visited[k] = true
+			queue = append(queue, k)
+			onePartRes := make(map[int][]int)
+			onePartRes[k] = classes[k]
+			//sort.Ints(onePartRes[k])
+			for len(queue) != 0 {
+				v := queue[0]
+				queue = queue[1:]
+				for _, n := range qVerCurAdj[v] {
+					if !visited[n] {
+						visited[n] = true
+						queue = append(queue, n)
+						onePartRes = g.join(onePartRes, v, n, classes[n], qVerCurAdj[n], matrix)
+					}
+				}
+			}
+			if len(onePartRes) != 0 {
+				partResults = append(partResults, onePartRes)
+			}
+		}
+	}
+	if len(partResults) == 0 {
+		return matchedRes
+	}
+	// combine all part results
+	var agent []int
+	for _, par := range partResults {
+		for k, _ := range par {
+			agent = append(agent, k)
+			break
+		}
+	}
+	oneRes := make(map[int]int)
+	ProductPlus(partResults, &matchedRes, agent, 0, oneRes)
+	return matchedRes
+}
+
+func (g *OneVertexProof) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int, matrix map[int]map[int]bool) map[int][]int {
+	/*
+		join the vertex v2 to current results
+	*/
+	newCurRes := make(map[int][]int)
+	for i, c1 := range curRes[v1] {
+		for _, c2 := range v2Candi {
+			flag := false
+			if matrix[c1][c2] {
+				flag = true
+				// judge the connectivity with other matching vertices
+				for _, n := range v2Nei { // check each neighbor of v2 whether in matched res or not
+					if _, ok := curRes[n]; ok { // neighbor belong to res
+						if !matrix[curRes[n][i]][c2]{ // the connectivity is not satisfied
+							flag = false
+							break
+						}
+					}
+				}
+				// satisfy the demand so that produce a new match
+				if flag {
+					for k, _ := range curRes {
+						newCurRes[k] = append(newCurRes[k], curRes[k][i])
+					}
+					newCurRes[v2] = append(newCurRes[v2], c2)
+				}
+			}
+		}
+	}
+	return newCurRes
+}
+
+func (g *OneVertexProof) filter(preMatched map[int]int, raw []map[int]int, fine *[]map[int]int, qAdj map[int][]int) [][]int {
 	var verList [][]int
 	var flag = true
 	for _, r := range raw {

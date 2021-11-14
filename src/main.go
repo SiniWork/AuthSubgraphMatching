@@ -20,8 +20,8 @@ func main(){
 	fmt.Println("----------------loading graph--------------")
 	g := new(matching.Graph)
 
-	//g.LoadUnGraphFromTxt("./data/yeast.txt")
-	//g.AssignLabel("./data/yeast_label.txt")
+	g.LoadUnGraphFromTxt("./data/yeast.txt")
+	g.AssignLabel("./data/yeast_label.txt")
 
 	//g.LoadUnGraphFromTxt("./data/human.txt")
 	//g.AssignLabel("./data/human_label.txt")
@@ -38,8 +38,8 @@ func main(){
 	//g.LoadUnGraphFromTxt("./data/youtube.txt")
 	//g.AssignLabel("./data/youtube_label.txt")
 
-	g.LoadUnGraphFromTxt("./data/livejournal.txt")
-	g.AssignLabel("./data/livejournal_label.txt")
+	//g.LoadUnGraphFromTxt("./data/livejournal.txt")
+	//g.AssignLabel("./data/livejournal_label.txt")
 
 	g.StatisticNeiStr()
 
@@ -80,25 +80,25 @@ func main(){
 	fmt.Println("the time of phase1 is: ", time1)
 	matching.AttachCandidate(candiList, &qG)
 
-	fmt.Println("----------------optimizing test----------------")
-	startT := time.Now()
-	fmt.Println("the number of results: ", len(g.ObtainMatchedGraphs(qG)))
-	//fmt.Println(len(g.ConObtainMatchedGraphs(qG)))
-	tm := time.Since(startT)
-	fmt.Println("time: ", tm)
+	//fmt.Println("----------------optimizing test----------------")
+	//startT := time.Now()
+	//fmt.Println("the number of total results: ", len(g.ObtainMatchedGraphs(qG)))
+	////fmt.Println("the number of results: ", len(g.ConObtainMatchedGraphs(qG)))
+	//tm := time.Since(startT)
+	//fmt.Println("time: ", tm)
 
-	//fmt.Println("----------------generating matched graphs for query graph then verifying VO2--------------") // get time2 and time4 as well as VO2 size
-	//g.ComputingGHash()
-	//startT2 := time.Now()
-	//VO2 := g.Prove(qG)
-	//time2 := time.Since(startT2)
-	//fmt.Println("the time of phase2 is: ", time2)
-	//fmt.Println("the number of evidence: ", len(VO2.Evidence))
-	//fmt.Println("the size of VO2: ", VO2.Size(), "Byte")
-	//startT4 := time.Now()
-	//fmt.Println(matching.Verify(VO2, g.GHash, qG))
-	//time4 := time.Since(startT4)
-	//fmt.Println("the time of verifying VO2 is: ", time4)
+	fmt.Println("----------------generating matched graphs for query graph then verifying VO2--------------") // get time2 and time4 as well as VO2 size
+	g.ComputingGHash()
+	startT2 := time.Now()
+	VO2 := g.Prove(qG)
+	time2 := time.Since(startT2)
+	fmt.Println("the time of phase2 is: ", time2)
+	fmt.Println("the number of evidence: ", len(VO2.Evidence))
+	fmt.Println("the size of VO2: ", VO2.Size(), "Byte")
+	startT4 := time.Now()
+	fmt.Println(matching.Verify(VO2, g.GHash, qG))
+	time4 := time.Since(startT4)
+	fmt.Println("the time of verifying VO2 is: ", time4)
 
 }
 
