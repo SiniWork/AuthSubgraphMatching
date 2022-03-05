@@ -20,20 +20,28 @@ type Vertex struct {
 	id int
 	label byte
 	content string
+	hash []byte
 }
 
 type Graph struct {
 	/*
 	vertices: vertex list
 	adj: the adjacency list
-	neiStr: statistic the one-hop neighborhood string for each vertex
+	NeiStr: statistic the one-hop neighborhood string for each vertex
+	verHash: each vertex's hashVal
+	verSumHash: the xor sum of the neighbor hashes of each vertex
+	GHash: the xor sum of all hashVal of vertices
+	GTag: the hash of the whole graph
 	 */
 
 	vertices map[int]Vertex
+	verHash map[int][]byte
+	verSumHash map[int][]byte
 	adj map[int][]int
 	matrix map[int]map[int]bool
 	NeiStr map[string][]int
 	GHash []byte
+	GTag []byte
 }
 
 
@@ -127,7 +135,7 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 
 func (g *Graph) LoadDireGraphFromTxt(fileName string) error {
 	/*
-		loading the graph from txt file and saving it into an adjacency list adj, the subscripts start from 0
+	loading the graph from txt file and saving it into an adjacency list adj, the subscripts start from 0
 	*/
 
 	g.adj = make(map[int][]int)
@@ -213,6 +221,7 @@ func (g *Graph) AssignLabel(labelFile string) error {
 		var v Vertex
 		v.id = k
 		v.label = []byte(labelSet[k])[0]
+		v.hash = hash(v)
 		g.vertices[k] = v
 	}
 	return nil
@@ -247,42 +256,45 @@ func (g *Graph) Print() error {
 	return nil
 }
 
-func (g *Graph) ComputingGHash() []byte {
+func (g *Graph) ComputingGHash() {
 	/*
-	Computing the GHash
+	Computing the GHash and GTag
 	 */
 	var accHashVal []byte
-	for i, ver := range g.vertices {
-		hashVal := g.computingHashVal(ver)
+	g.verHash = make(map[int][]byte)
+	g.verSumHash = make(map[int][]byte)
+	for i, _ := range g.vertices {
+		hashVal := g.computingHashVal(i)
+		g.verSumHash[i] = hashVal
+		g.verHash[i] = crypto.Keccak256(hashVal)
 		if i == 0 {
 			accHashVal = hashVal
 		} else {
 			accHashVal = xor(accHashVal, hashVal)
 		}
 	}
-	g.GHash = crypto.Keccak256(accHashVal)
-	return accHashVal
+	g.GHash = accHashVal
+	g.GTag = crypto.Keccak256(accHashVal)
 }
 
-func (g *Graph) computingHashVal(v Vertex) []byte {
+func (g *Graph) computingHashVal(v int) []byte{
 	/*
 	Computing hashVal for vertex v
 	 */
-	index := v.id
-	var outXor = hash(v)
-	if len(g.adj[index]) == 0 {
+	var outXor = g.vertices[v].hash
+	if len(g.adj[v]) == 0 {
 		return nil
 	} else {
-		for _, nei := range g.adj[index] {
-			outXor = xor(outXor, hash(g.vertices[nei]))
+		for _, nei := range g.adj[v] {
+			outXor = xor(outXor, g.vertices[nei].hash)
 		}
 	}
-	return crypto.Keccak256(outXor)
+	return outXor
 }
 
 func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	/*
-	Obtaining all sub graphs that matched the given query graph in the data graph
+	Obtaining results that matched the given query graph in the data graph
 	 */
 	var result []map[int]int
 
@@ -290,23 +302,38 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	pendingVertex := query.CQVList[expandId]
 	sort.Ints(pendingVertex.Candidates)
 	fmt.Println("the number of candidates: ", len(pendingVertex.Candidates))
-	zero := 0
+	zero := 0 // for test
+	useL := []int{}
+	stTotal := time.Now()
 	for _, candid := range pendingVertex.Candidates {
 		//fmt.Println("processing: ", candid, "degree is: ", len(g.adj[candid]))
 		//res := g.expandOneVertexV1(candid, expandId, query)
 		res := g.expandOneVertexV2(candid, expandId, query)
+		// for test
 		if len(res) == 0 {
 			zero = zero + 1
+		} else {
+			result = append(result, res...)
+			useL = append(useL, candid)
 		}
-		result = append(result, res...)
 	}
-	fmt.Println("the number of false vertices: ", zero)
+	enTotal := time.Since(stTotal)
+	fmt.Println("the total time is: ", enTotal)
+	//for test
+	//fmt.Println("the number of false vertices: ", zero)
+	st := time.Now()
+	for _, candid := range useL {
+		g.expandOneVertexV2(candid, expandId, query)
+	}
+	en := time.Since(st)
+	fmt.Println("without false positive time is: ", en)
+
 	return result
 }
 
 func (g *Graph) expandOneVertexV1(candidateId, expandQId int, query QueryGraph) []map[int]int {
 	/*
-		Expanding the data graph from the given candidate vertex to obtain matched results
+	Expanding the data graph from the given candidate vertex to obtain matched results (enumeration-based)
 	*/
 	var result []map[int]int
 	visited := g.setVisited(candidateId, len(query.CQVList[expandQId].Base.ExpandLayer))
@@ -323,7 +350,7 @@ func (g *Graph) expandOneVertexV1(candidateId, expandQId int, query QueryGraph) 
 
 func (g *Graph) expandOneVertexV2(candidateId, expandQId int, query QueryGraph) []map[int]int {
 	/*
-		Expanding the data graph from the given candidate vertex to obtain matched results
+	Expanding the data graph from the given candidate vertex to obtain matched results (join-based)
 	*/
 	var result []map[int]int
 	expL := 1
@@ -336,7 +363,7 @@ func (g *Graph) expandOneVertexV2(candidateId, expandQId int, query QueryGraph) 
 
 func (g *Graph) ConObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	/*
-		Concurrently obtaining all sub graphs that matched the given query graph in the data graph
+	Concurrently obtaining results that matched the given query graph in the data graph
 	*/
 	var result []map[int]int
 	expandId := GetExpandQueryVertex(query.CQVList)
@@ -367,7 +394,7 @@ func (g *Graph) ConObtainMatchedGraphs(query QueryGraph) []map[int]int {
 
 func (g *Graph) conExpandSomeVerticesV1(candidateIdList []int, expandQId int, query QueryGraph, res chan []map[int]int)  {
 	/*
-		Expanding the given candidate vertices to obtain matched results
+	Expanding the given candidate vertices to obtain matched results (enumeration-based)
 	*/
 	startT1 := time.Now()
 	var resultA []map[int]int
@@ -391,7 +418,7 @@ func (g *Graph) conExpandSomeVerticesV1(candidateIdList []int, expandQId int, qu
 
 func (g *Graph) conExpandSomeVerticesV2(candidateIdList []int, expandQId int, query QueryGraph, res chan []map[int]int)  {
 	/*
-		Expanding the given candidate vertices to obtain matched results
+	Expanding the given candidate vertices to obtain matched results (join-based)
 	*/
 	startT1 := time.Now()
 	var resultA []map[int]int
@@ -412,10 +439,10 @@ func (g *Graph) conExpandSomeVerticesV2(candidateIdList []int, expandQId int, qu
 
 func (g *Graph) matchingV1(expL int, gVer []int, expQId int, query QueryGraph, visited []map[int]bool, preMatched map[int]int, res *[]map[int]int) {
 	/*
+	Recursively enumerating each layer's matched results then generating final results
 	expT: still need expanding times
 	gVer: the set of vertices that need to be expanded
 	expQId: the starting expansion query vertex
-	queryList: all the query vertices and their related information
 	visited: for checking whether present vertex has been visited in last layer
 	preMatched: already matched part
 	res: save the result
@@ -489,11 +516,11 @@ func (g *Graph) matchingV1(expL int, gVer []int, expQId int, query QueryGraph, v
 
 func (g *Graph) matchingV2(expL int, expQId int, query QueryGraph, preMatched map[int]int, res *[]map[int]int){
 	/*
-		expT: still need expanding times
-		gVer: the set of vertices that need to be expanded
-		expQId: the starting expansion query vertex
-		preMatched: already matched part
-		res: save the result
+	Recursively enumerating each layer's matched results then generating final results
+	expT: still need expanding times
+	expQId: the starting expansion query vertex
+	preMatched: already matched part
+	res: save the result
 	*/
 	if expL > len(query.CQVList[expQId].Base.ExpandLayer) {
 		return
@@ -643,7 +670,7 @@ func (g *Graph) setVisited(candidateId, layers int) []map[int]bool {
 
 func (g *Graph) ObtainCurRes(classes map[int][]int, query QueryGraph, qVer []int) []map[int]int {
 	/*
-		Obtain current layer's matched results
+	Obtain current layer's matched results
 	*/
 
 	var matchedRes []map[int]int
@@ -704,7 +731,7 @@ func (g *Graph) ObtainCurRes(classes map[int][]int, query QueryGraph, qVer []int
 
 func (g *Graph) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map[int][]int {
 	/*
-	join the vertex v2 to current results
+	Join the vertex v2 to current results
 	 */
 	newCurRes := make(map[int][]int)
 	for i, c1 := range curRes[v1] {
@@ -734,9 +761,33 @@ func (g *Graph) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map
 	return newCurRes
 }
 
+func (g *Graph) BacktrackingVO(query QueryGraph) {
+	/*
+	Computing the VO size of backtracking search algorithm
+	 */
+	const SizeVer = 18
+	//num := 0
+	verList := make(map[int]bool)
+	for _, u := range query.CQVList {
+		for _, v := range u.Candidates {
+			verList[v] = true
+			//for _, n := range g.adj[v] {
+				//verList[n] = true
+				//maintain a adj for each neighbor, compute the hash of this neighbor need this adj
+				//for _, nn := range g.adj[n] {
+				//	if nn belong to the subgraph, then add
+				//}
+			//}
+			//num = num + len(g.adj[v])
+		}
+	}
+	fmt.Println("the number of vertices of candidates: ", len(verList))
+	//fmt.Println("the VO size of BS: ", len(verList)*(32+SizeVer)+num*8, " Byte")
+}
+
 func ProductPlus(partRes []map[int][]int, res *[]map[int]int, qV []int, level int, oneMap map[int]int) {
 	/*
-		Permutation and combination all part results
+	Permutation and combination all part results
 	*/
 	if level < len(partRes) {
 		for i:=0; i<len(partRes[level][qV[level]]); i++ {

@@ -4,7 +4,6 @@ import (
 	"Corgi/src/matching"
 	"Corgi/src/mpt"
 	"fmt"
-	"time"
 )
 
 /*
@@ -20,8 +19,11 @@ func main(){
 	fmt.Println("----------------loading graph--------------")
 	g := new(matching.Graph)
 
-	g.LoadUnGraphFromTxt("./data/yeast.txt")
-	g.AssignLabel("./data/yeast_label.txt")
+	g.LoadUnGraphFromTxt("./data/example1.txt")
+	g.AssignLabel("./data/example1_label.txt")
+
+	//g.LoadUnGraphFromTxt("./data/yeast.txt")
+	//g.AssignLabel("./data/yeast_label.txt")
 
 	//g.LoadUnGraphFromTxt("./data/human.txt")
 	//g.AssignLabel("./data/human_label.txt")
@@ -51,10 +53,12 @@ func main(){
 			trie.Insert(byteKey, n)
 		}
 	}
+	//trie.PrintTrie()
 
-	fmt.Println("----------------loading query--------------")
-	qG := matching.QueryPreProcessing("./data/query1.txt", "./data/query1_label.txt")
 
+	//fmt.Println("----------------loading query--------------")
+	//qG := matching.QueryPreProcessing("./data/query1.txt", "./data/query1_label.txt")
+	//
 	//fmt.Println("----------------generating VO1 then verifying it--------------") // get time3 and VO1 size
 	//qExId := matching.GetExpandQueryVertex(qG.CQVList)
 	//fmt.Println("query vertex string: ", string(qG.CQVList[qExId].Base.OneHopStr))
@@ -64,21 +68,28 @@ func main(){
 	//fmt.Println(mpt.Verify(rootH, qG.CQVList[qExId].Base.OneHopStr, VO1))
 	//time3 := time.Since(startT3)
 	//fmt.Println("the number of nodes in VO1: ", len(VO1.Nodes))
-	//fmt.Println("the size of VO1: ", VO1.Size(), "Byte")
+	//totalSize, resultSize := VO1.Size()
+	//fmt.Println("the size of VO1: ", totalSize, "Byte")
+	//fmt.Println("the size of result: ", resultSize, "Byte")
+	//fmt.Println("the pure VO1 size: ", totalSize-resultSize, "Byte")
 	//fmt.Println("the time of verifying VO1 is: ", time3)
 
 
-	fmt.Println("----------------generating candidates for each query vertex--------------") // get time1
-	var candiList [][]int
-	startT1 := time.Now()
-	for k, each := range qG.CQVList {
-		each.Candidates = trie.GetCandidate(each.Base.OneHopStr)
-		fmt.Println("present string: ", string(qG.CQVList[k].Base.OneHopStr), ", its candidates: ", len(each.Candidates))
-		candiList = append(candiList, each.Candidates)
-	}
-	time1 := time.Since(startT1)
-	fmt.Println("the time of phase1 is: ", time1)
-	matching.AttachCandidate(candiList, &qG)
+	//fmt.Println("----------------generating candidates for each query vertex--------------") // get time1
+	//var candiList [][]int
+	//startT1 := time.Now()
+	//for k, each := range qG.CQVList {
+	//	each.Candidates = trie.GetCandidate(each.Base.OneHopStr)
+	//	fmt.Println("present string: ", string(qG.CQVList[k].Base.OneHopStr), ", its candidates: ", len(each.Candidates))
+	//	candiList = append(candiList, each.Candidates)
+	//}
+	//time1 := time.Since(startT1)
+	//fmt.Println("the time of phase1 is: ", time1)
+	//matching.AttachCandidate(candiList, &qG)
+	//
+	//fmt.Println("----------------VO of backtracking search algorithm----------------")
+	//g.BacktrackingVO(qG)
+
 
 	//fmt.Println("----------------optimizing test----------------")
 	//startT := time.Now()
@@ -87,18 +98,27 @@ func main(){
 	//tm := time.Since(startT)
 	//fmt.Println("time: ", tm)
 
-	fmt.Println("----------------generating matched graphs for query graph then verifying VO2--------------") // get time2 and time4 as well as VO2 size
-	g.ComputingGHash()
-	startT2 := time.Now()
-	VO2 := g.Prove(qG)
-	time2 := time.Since(startT2)
-	fmt.Println("the time of phase2 is: ", time2)
-	fmt.Println("the number of evidence: ", len(VO2.Evidence))
-	fmt.Println("the size of VO2: ", VO2.Size(), "Byte")
-	startT4 := time.Now()
-	fmt.Println(matching.Verify(VO2, g.GHash, qG))
-	time4 := time.Since(startT4)
-	fmt.Println("the time of verifying VO2 is: ", time4)
+	//fmt.Println("----------------generating matched graphs for query graph--------------") // get time2 and time4 as well as VO2 size
+	//g.ComputingGHash()
+	//startT2 := time.Now()
+	//VO2 := g.Prove(qG)
+	//time2 := time.Since(startT2)
+	//fmt.Println("the time of phase2 is: ", time2)
+	//fmt.Println("the number of evidence: ", len(VO2.Evidence))
+	//totalSize, _ := VO2.Size()
+	//fmt.Println("the size of VO2: ", totalSize, "Byte")
+	//fmt.Println("the size of result: ", resultSize, "Byte")
+	//fmt.Println("the pure VO2 size: ", totalSize-resultSize, "Byte")
+
+	//totalSize, _ := VO2.Size()
+	//fmt.Println("the size of VO2: ", totalSize, "Byte")
+	//VO2.Size()
+
+	//fmt.Println("----------------verifying VO2--------------") // get time4
+	//startT4 := time.Now()
+	//fmt.Println(matching.Verify(VO2, g.GTag, qG))
+	//time4 := time.Since(startT4)
+	//fmt.Println("the time of verifying VO2 is: ", time4)
 
 }
 

@@ -21,6 +21,7 @@ func (t *Trie) Prove(key []byte) ([]int, Proof, bool) {
 	/*
 	obtaining merkle proof of the given key
 	*/
+
 	var proof Proof
 	t.HashRoot()
 	nodeExist := make(map[Node]int)
@@ -124,7 +125,6 @@ func (t *Trie) Prove(key []byte) ([]int, Proof, bool) {
 			}
 		}
 	}
-
 	// make up the relation between nodes
 	for _, node := range proof.Nodes {
 		switch node.(type) {
@@ -352,18 +352,22 @@ func checkBranch(key []byte, node NodeCom, nodeList []NodeCom, relation map[int]
 	return false, nil
 }
 
-func (p *Proof) Size() int {
+func (p *Proof) Size() (int, int) {
 	/*
 	Counting the size of the Proof
 	*/
 	var totalSize int
+	var resultSize int
+
 	for _, node := range p.Nodes {
 		if leaf, ok := node.(*LeafNode); ok {
-			leafSize := len(leaf.Path) + len(leaf.Value)*8
+			leafSize := len(leaf.Path) + len(leaf.Value) * 8
 			totalSize = totalSize + leafSize
+			resultSize = resultSize + leafSize - len(leaf.Value) * 8
 		} else if branch, ok := node.(*BranchNode); ok {
-			branchSize := BranchSize*8 + len(branch.Value)*8
+			branchSize := BranchSize * 8 + len(branch.Value) * 8
 			totalSize = totalSize + branchSize
+			resultSize = resultSize + branchSize - len(branch.Value) * 8
 		} else if ext, ok := node.(*ExtensionNode); ok {
 			extSize := len(ext.Path) + 8
 			totalSize = totalSize + extSize
@@ -372,5 +376,5 @@ func (p *Proof) Size() int {
 			totalSize = totalSize + hashSize
 		}
 	}
-	return totalSize
+	return totalSize, resultSize
 }

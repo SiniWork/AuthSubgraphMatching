@@ -5,6 +5,10 @@ import (
 )
 
 type QVertex struct {
+	/*
+	OneHopStr: the dictionary label sequence of 1-hop neighbor
+	ExpandLayer: save each layer's vertices, the layer index start from 1
+	*/
 	Id int
 	Label byte
 	OneHopStr []byte
@@ -12,12 +16,22 @@ type QVertex struct {
 }
 
 type CandiQVertex struct {
+	/*
+	Base: the original query vertex structure
+	Candidates: current vertex's candidate set
+	CandidateB: the 'map' format of candidate set, used as bloom filter
+	*/
 	Base QVertex
 	Candidates []int
 	CandidateB map[int]bool
 }
 
 type QueryGraph struct {
+	/*
+	CQVList: the original query vertex structure
+	Adj: the adjacency list
+	Matrix: the 'map' format of Adj
+	*/
 	CQVList []CandiQVertex
 	Adj map[int][]int
 	Matrix map[int]map[int]bool
@@ -39,7 +53,7 @@ func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 		temp = append(temp, k)
 	}
 	sort.Ints(temp)
-	for _, i := range temp {// bug in here, the ordering of vertices is not consist
+	for _, i := range temp {
 		v := query.vertices[i]
 		qV := QVertex{Id: v.id, Label: v.label}
 		qV.OneHopStr = append(qV.OneHopStr, v.label)

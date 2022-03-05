@@ -13,9 +13,11 @@ type potentialPath struct {
 type Trie struct {
 	root Node
 }
+
 func (t *Trie) GetRoot() Node {
 	return t.root
 }
+
 func NewTrie() *Trie {
 	return &Trie{}
 }
@@ -57,7 +59,7 @@ func (t *Trie) Insert(key []byte, value int) error {
 				if len(key) == 0 {
 					branch.SetValue(value)
 					oldLeaf := NewLeafNode(leaf.Path[1:], leaf.Value)
-					branch.SetBranch(leaf.Path[0],oldLeaf)
+					branch.SetBranch(leaf.Path[0], oldLeaf)
 					return nil
 				}
 				if len(leaf.Path) == 0 {
@@ -375,17 +377,20 @@ func printNode(node Node) {
 	switch (node).(type) {
 	case *LeafNode:
 		leaf, _ := (node).(*LeafNode)
-		fmt.Println("LeafNode hash: ", leaf.flags.hash)
-		fmt.Println(leaf.Value)
+		//fmt.Println("LeafNode hash: ", leaf.flags.hash)
+		if len(leaf.Value) > 100 {
+			fmt.Println("the number of elements in leaf node: ", len(leaf.Value))
+		}
 		return
 	case *ExtensionNode:
 		ext, _ := (node).(*ExtensionNode)
-		fmt.Println("ExtensionNode hash: ", ext.flags.hash)
+		//fmt.Println("ExtensionNode hash: ", ext.flags.hash)
 		printNode(ext.Next)
 		return
 	case *BranchNode:
 		branch, _ := (node).(*BranchNode)
-		fmt.Println("BranchNode hash: ", branch.flags.hash)
+		//fmt.Println("BranchNode hash: ", branch.flags.hash)
+		fmt.Println("the number of elements in branch node: ", len(branch.Value))
 		for i:=0; i<BranchSize; i++ {
 			if child := branch.Branches[i]; child != nil {
 				printNode(child)
