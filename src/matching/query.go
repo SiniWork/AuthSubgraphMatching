@@ -1,45 +1,39 @@
 package matching
 
 import (
+	"fmt"
 	"sort"
 )
 
 type QVertex struct {
 	/*
-	OneHopStr: the dictionary label sequence of 1-hop neighbor
+	OneHopStr: the dictionary label sequence of 1-hop neighbors
 	ExpandLayer: save each layer's vertices, the layer index start from 1
+	Candidates:  candidate vertex set of query vertex
+	CandidateB: the 'map' format of candidate vertex set, used as bloom filter
 	*/
 	Id int
 	Label byte
 	OneHopStr []byte
 	ExpandLayer map[int][]int
-}
-
-type CandiQVertex struct {
-	/*
-	Base: the original query vertex structure
-	Candidates: current vertex's candidate set
-	CandidateB: the 'map' format of candidate set, used as bloom filter
-	*/
-	Base QVertex
 	Candidates []int
 	CandidateB map[int]bool
 }
 
 type QueryGraph struct {
 	/*
-	CQVList: the original query vertex structure
+	QVList: the list of query vertices
 	Adj: the adjacency list
 	Matrix: the 'map' format of Adj
 	*/
-	CQVList []CandiQVertex
+	QVList []QVertex
 	Adj map[int][]int
 	Matrix map[int]map[int]bool
 }
 
-func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
+func LoadProcessing(queryFile, queryLabelFile string) QueryGraph {
 	/*
-	Preprocessing the query graph
+	Loading and preprocessing the query graph
 	*/
 	var queryG QueryGraph
 	var query Graph
@@ -49,31 +43,34 @@ func QueryPreProcessing(queryFile, queryLabelFile string) QueryGraph {
 	queryG.Matrix = query.matrix
 
 	var temp []int
-	for k, _ := range query.vertices {
+	for k, _ := range query.Vertices {
 		temp = append(temp, k)
 	}
 	sort.Ints(temp)
 	for _, i := range temp {
-		v := query.vertices[i]
+		v := query.Vertices[i]
 		qV := QVertex{Id: v.id, Label: v.label}
 		qV.OneHopStr = append(qV.OneHopStr, v.label)
 		for _, nei := range query.adj[v.id] {
-			qV.OneHopStr = append(qV.OneHopStr, query.vertices[nei].label)
+			qV.OneHopStr = append(qV.OneHopStr, query.Vertices[nei].label)
 		}
 		qV.ExpandLayer = expandGraph(v.id, query.adj)
-		cQV := CandiQVertex{Base: qV}
-		queryG.CQVList = append(queryG.CQVList, cQV)
+		queryG.QVList = append(queryG.QVList, qV)
 	}
 	return queryG
 }
 
-func AttachCandidate(candiList [][]int, qG *QueryGraph) {
-	for k, candiL := range candiList {
-		qG.CQVList[k].Candidates = candiL
-		qG.CQVList[k].CandidateB = make(map[int]bool)
-		for _, v := range candiL {
-			qG.CQVList[k].CandidateB[v] = true
-		}
+func (q *QueryGraph) Print() {
+	for _, v := range q.QVList {
+		fmt.Println(len(v.Candidates))
+	}
+}
+
+func AddCandidate(candi []int, qg *QueryGraph, index int) {
+	qg.QVList[index].Candidates = candi
+	qg.QVList[index].CandidateB = make(map[int]bool)
+	for _, v := range candi {
+		qg.QVList[index].CandidateB[v] = true
 	}
 }
 

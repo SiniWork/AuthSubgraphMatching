@@ -1,6 +1,8 @@
 package mpt
 
-import "github.com/ethereum/go-ethereum/crypto"
+import (
+	"github.com/ethereum/go-ethereum/crypto"
+)
 
 type ExtensionNode struct {
 		Path []byte

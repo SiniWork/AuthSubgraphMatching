@@ -2,6 +2,7 @@ package mpt
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"
+	"sort"
 	"strconv"
 )
 
@@ -9,7 +10,8 @@ const BranchSize = 4
 
 type BranchNode struct {
 	Branches [BranchSize]Node
-	Value    []int
+	Value map[int][]byte
+	Content map[int]string
 	flags    nodeFlag
 }
 
@@ -32,13 +34,9 @@ func (b *BranchNode) RemoveBranch(bit byte) {
 	b.Branches[int(bit)-65] = nil
 }
 
-func (b *BranchNode) SetValue(value interface{}) {
-	switch value.(type) {
-	case int:
-		b.Value = []int{value.(int)}
-	case []int:
-		b.Value = value.([]int)
-	}
+func (b *BranchNode) SetValue(value map[int][]byte, content map[int]string) {
+	b.Value = value
+	b.Content = content
 }
 
 func (b *BranchNode) RemoveValue() {
@@ -64,8 +62,15 @@ func (b BranchNode) Raw() []interface{} {
 		}
 	}
 	var valueStr []string
-	for _, v := range b.Value {
-		valueStr = append(valueStr,strconv.Itoa(v))
+	var keys []int
+	for k, _ := range b.Value {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, v := range keys {
+		valueStr = append(valueStr, strconv.Itoa(v))
+		valueStr = append(valueStr, string(b.Value[v]))
+		valueStr = append(valueStr, b.Content[v])
 	}
 	hashes[BranchSize] = valueStr
 	return hashes

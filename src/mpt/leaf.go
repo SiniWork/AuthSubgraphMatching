@@ -2,32 +2,25 @@ package mpt
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"
+	"sort"
 	"strconv"
 )
 
 
 type LeafNode struct {
 	Path []byte
-	Value []int
+	Value map[int][]byte
+	Content map[int]string
 	flags nodeFlag
 }
 
-func NewLeafNode(key []byte, value interface{}) *LeafNode {
-	switch value.(type) {
-	case int:
-		return &LeafNode{
-			Path: key,
-			Value: []int{value.(int)},
-			flags: newFlag(),
-		}
-	case []int:
-		return &LeafNode{
-		Path: key,
-		Value: value.([]int),
+func NewLeafNode(key []byte, value map[int][]byte, content map[int]string) *LeafNode {
+	return &LeafNode{
+		Path:  key,
+		Value: value,
+		Content: content,
 		flags: newFlag(),
-		}
 	}
-	return nil
 }
 
 func (l LeafNode) Hash() []byte {
@@ -37,8 +30,15 @@ func (l LeafNode) Hash() []byte {
 func (l LeafNode) Raw() []interface{} {
 	path := l.Path
 	var valueStr []string
-	for _, v := range l.Value {
-		valueStr = append(valueStr,strconv.Itoa(v))
+	var keys []int
+	for k, _ := range l.Value {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	for _, v := range keys {
+		valueStr = append(valueStr, strconv.Itoa(v))
+		valueStr = append(valueStr, string(l.Value[v]))
+		valueStr = append(valueStr, l.Content[v])
 	}
 	raw := []interface{}{path, valueStr}
 	return raw
