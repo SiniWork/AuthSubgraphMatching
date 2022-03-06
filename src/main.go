@@ -3,130 +3,84 @@ package main
 import (
 	"Corgi/src/matching"
 	"Corgi/src/mpt"
+	"Corgi/src/verification"
 	"fmt"
 )
 
-/*
-part test
- */
-//time1: phase 1 time
-//time2: phase 1 verify time
-//time3: phase 2 time
-//time4: phase 2 verify time
-
 func main(){
 
-	fmt.Println("----------------loading graph--------------")
+	fmt.Println("----------------Loading Graph----------------")
 	g := new(matching.Graph)
-
-	g.LoadUnGraphFromTxt("./data/example1.txt")
-	g.AssignLabel("./data/example1_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/yeast.txt")
-	//g.AssignLabel("./data/yeast_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/human.txt")
-	//g.AssignLabel("./data/human_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/wordnet.txt")
-	//g.AssignLabel("./data/wordnet_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/dblp.txt")
-	//g.AssignLabel("./data/dblp_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/amazon.txt")
-	//g.AssignLabel("./data/amazon_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/youtube.txt")
-	//g.AssignLabel("./data/youtube_label.txt")
-
-	//g.LoadUnGraphFromTxt("./data/livejournal.txt")
-	//g.AssignLabel("./data/livejournal_label.txt")
-
+	dataset := "ex"
+	switch dataset {
+	case "ex":
+		g.LoadUnGraphFromTxt("./data/example1.txt")
+		g.AssignLabel("./data/example1_label.txt")
+	case "ye":
+		g.LoadUnGraphFromTxt("./data/yeast.txt")
+		g.AssignLabel("./data/yeast_label.txt")
+	case "hu":
+		g.LoadUnGraphFromTxt("./data/human.txt")
+		g.AssignLabel("./data/human_label.txt")
+	case "wn":
+		g.LoadUnGraphFromTxt("./data/wordnet.txt")
+		g.AssignLabel("./data/wordnet_label.txt")
+	case "db":
+		g.LoadUnGraphFromTxt("./data/dblp.txt")
+		g.AssignLabel("./data/dblp_label.txt")
+	case "am":
+		g.LoadUnGraphFromTxt("./data/amazon.txt")
+		g.AssignLabel("./data/amazon_label.txt")
+	case "yt":
+		g.LoadUnGraphFromTxt("./data/youtube.txt")
+		g.AssignLabel("./data/youtube_label.txt")
+	case "lj":
+		g.LoadUnGraphFromTxt("./data/livejournal.txt")
+		g.AssignLabel("./data/livejournal_label.txt")
+	}
 	g.StatisticNeiStr()
 
-	fmt.Println("----------------building mpt--------------")
+	fmt.Println("----------------Building MVPTree----------------")
 	trie := mpt.NewTrie()
 	for k, v := range g.NeiStr {
 		byteKey := []byte(k)
-		for _, n := range v {
-			trie.Insert(byteKey, n)
+		for _, e := range v {
+			trie.Insert(byteKey, e, g.Vertices[e].Hash, g.Vertices[e].Content)
 		}
 	}
-	//trie.PrintTrie()
+	RD := trie.HashRoot()
 
+	fmt.Println("----------------Loading Query----------------")
+	var q matching.QueryGraph
+	workload := 1
+	switch workload {
+	case 1:
+		q = matching.LoadProcessing("./data/query1.txt", "./data/query1_label.txt")
+	case 2:
+		q = matching.LoadProcessing("./data/query2.txt", "./data/query2_label.txt")
+	case 3:
+		q = matching.LoadProcessing("./data/query3.txt", "./data/query3_label.txt")
+	case 4:
+		q = matching.LoadProcessing("./data/query4.txt", "./data/query4_label.txt")
+	case 5:
+		q = matching.LoadProcessing("./data/query5.txt", "./data/query5_label.txt")
+	case 6:
+		q = matching.LoadProcessing("./data/query6.txt", "./data/query6_label.txt")
+	}
 
-	//fmt.Println("----------------loading query--------------")
-	//qG := matching.QueryPreProcessing("./data/query1.txt", "./data/query1_label.txt")
-	//
-	//fmt.Println("----------------generating VO1 then verifying it--------------") // get time3 and VO1 size
-	//qExId := matching.GetExpandQueryVertex(qG.CQVList)
-	//fmt.Println("query vertex string: ", string(qG.CQVList[qExId].Base.OneHopStr))
-	//_, VO1, _ := trie.Prove(qG.CQVList[qExId].Base.OneHopStr)
-	//rootH, _ := trie.HashRoot()
-	//startT3 := time.Now()
-	//fmt.Println(mpt.Verify(rootH, qG.CQVList[qExId].Base.OneHopStr, VO1))
-	//time3 := time.Since(startT3)
-	//fmt.Println("the number of nodes in VO1: ", len(VO1.Nodes))
-	//totalSize, resultSize := VO1.Size()
-	//fmt.Println("the size of VO1: ", totalSize, "Byte")
-	//fmt.Println("the size of result: ", resultSize, "Byte")
-	//fmt.Println("the pure VO1 size: ", totalSize-resultSize, "Byte")
-	//fmt.Println("the time of verifying VO1 is: ", time3)
+	fmt.Println("----------------Authenticated Filtering----------------")
+	VO := verification.VO{}
+	VO.NodeList = trie.AuthFilter(q)
 
+	fmt.Println("----------------Authenticated Matching----------------")
+	VO2 := g.AuthMatching(q)
+	VO.CSG = VO2.CSG
+	VO.FP = VO2.FP
+	VO.RS = VO2.RS
 
-	//fmt.Println("----------------generating candidates for each query vertex--------------") // get time1
-	//var candiList [][]int
-	//startT1 := time.Now()
-	//for k, each := range qG.CQVList {
-	//	each.Candidates = trie.GetCandidate(each.Base.OneHopStr)
-	//	fmt.Println("present string: ", string(qG.CQVList[k].Base.OneHopStr), ", its candidates: ", len(each.Candidates))
-	//	candiList = append(candiList, each.Candidates)
-	//}
-	//time1 := time.Since(startT1)
-	//fmt.Println("the time of phase1 is: ", time1)
-	//matching.AttachCandidate(candiList, &qG)
-	//
-	//fmt.Println("----------------VO of backtracking search algorithm----------------")
-	//g.BacktrackingVO(qG)
+	fmt.Println("----------------Verification----------------")
+	F, _ := VO.Authentication(q, RD)
+	fmt.Println(F)
 
-
-	//fmt.Println("----------------optimizing test----------------")
-	//startT := time.Now()
-	//fmt.Println("the number of total results: ", len(g.ObtainMatchedGraphs(qG)))
-	////fmt.Println("the number of results: ", len(g.ConObtainMatchedGraphs(qG)))
-	//tm := time.Since(startT)
-	//fmt.Println("time: ", tm)
-
-	//fmt.Println("----------------generating matched graphs for query graph--------------") // get time2 and time4 as well as VO2 size
-	//g.ComputingGHash()
-	//startT2 := time.Now()
-	//VO2 := g.Prove(qG)
-	//time2 := time.Since(startT2)
-	//fmt.Println("the time of phase2 is: ", time2)
-	//fmt.Println("the number of evidence: ", len(VO2.Evidence))
-	//totalSize, _ := VO2.Size()
-	//fmt.Println("the size of VO2: ", totalSize, "Byte")
-	//fmt.Println("the size of result: ", resultSize, "Byte")
-	//fmt.Println("the pure VO2 size: ", totalSize-resultSize, "Byte")
-
-	//totalSize, _ := VO2.Size()
-	//fmt.Println("the size of VO2: ", totalSize, "Byte")
-	//VO2.Size()
-
-	//fmt.Println("----------------verifying VO2--------------") // get time4
-	//startT4 := time.Now()
-	//fmt.Println(matching.Verify(VO2, g.GTag, qG))
-	//time4 := time.Since(startT4)
-	//fmt.Println("the time of verifying VO2 is: ", time4)
 
 }
-
-
-/*
-other test
-*/
-//func main() {
-//	//tool.ConfigLabelForG("./data/livejournal.txt", "./data/livejournal_label.txt")
-//	//fmt.Println(tool.CheckGraphLabel("./data/livejournal.txt", "./data/livejournal_label.txt"))
-//}
