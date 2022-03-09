@@ -24,46 +24,13 @@ func (g *Graph) AuthMatching(query QueryGraph) Proof {
 	proof.FP = make(map[int][]int)
 	proof.CSG = make(map[int][]int)
 
-	//// filter CS
-	//CSAdj := make(map[int]map[int]bool)
-	//ResMap := make(map[int]map[int]bool)
-	//for _, u := range query.QVList {
-	//	CSAdj[u.Id] = make(map[int]bool)
-	//	ResMap[u.Id] = make(map[int]bool)
-	//	for _, v := range u.Candidates {
-	//		for _, vn := range g.adj[v] {
-	//			CSAdj[u.Id][vn] = true
-	//		}
-	//	}
-	//}
-	//var flag bool
-	//newCS := make(map[int][]int)
-	//for _, u := range query.QVList {
-	//	for _, v := range u.Candidates {
-	//		flag = true
-	//		for _, un := range query.Adj[u.Id] {
-	//			if yes, _ := CSAdj[un][v]; !yes {
-	//				flag = false
-	//				break
-	//			}
-	//		}
-	//		if flag {
-	//			newCS[u.Id] = append(newCS[u.Id], v)
-	//		}
-	//	}
-	//}
-	//for k, u := range newCS {
-	//	AddCandidate(u, &query, k)
-	//}
-
 	//obtain RS & CSG
 	ResMap := make(map[int]map[int]bool)
 	for k, _ := range query.QVList {
 		ResMap[k] = make(map[int]bool)
 	}
-	expandId := GetExpandQueryVertex(query.QVList)
-	pendingVertex := query.QVList[expandId]
-	for _, candid := range pendingVertex.Candidates {
+	expandId := GetExpandQueryVertex(query)
+	for _, candid := range query.CandidateSets[expandId] {
 		oneRes := g.authEE(candid, expandId, query)
 		proof.RS = append(proof.RS, oneRes.MS...)
 		for _, m := range oneRes.MS {
@@ -77,10 +44,10 @@ func (g *Graph) AuthMatching(query QueryGraph) Proof {
 	}
 
 	// complete FP
-	for _, u := range query.QVList {
-		for _, v := range u.Candidates {
-			if yes, _ := ResMap[u.Id][v]; !yes {
-				proof.FP[u.Id] = append(proof.FP[u.Id], v)
+	for u, c := range query.CandidateSets {
+		for _, v := range c {
+			if yes, _ := ResMap[u][v]; !yes {
+				proof.FP[u] = append(proof.FP[u], v)
 			}
 		}
 	}
@@ -139,16 +106,16 @@ func (g *Graph) authMatch(expL int, expQId int, query QueryGraph, preMatched map
 			if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
 				repeat[n] = true
 				for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
-					flag := true
-					if query.QVList[c].CandidateB[n] { // graph vertex n may belong to the candidate set of query vertex c
+					fg := true
+					if query.CandidateSetsB[c][n] { // graph vertex n may belong to the candidate set of query vertex c
 						oneVer.CSG[n] = g.adj[n]
 						for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
 							if query.Matrix[c][pre] && !g.matrix[n][preMatched[pre]] { // not consist
-								flag = false
+								fg = false
 								break
 							}
 						}
-						if flag { // graph vertex n indeed belong to the candidate set of query vertex c
+						if fg { // graph vertex n indeed belong to the candidate set of query vertex c
 							classes[c] = append(classes[c], n)
 						}
 					}

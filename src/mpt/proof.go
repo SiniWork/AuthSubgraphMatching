@@ -14,17 +14,25 @@ type Proof struct {
 	NodeRelationMap map[int]map[int8]int
 }
 
-func (t *Trie) AuthFilter(q matching.QueryGraph) map[int]Proof {
+func (t *Trie) AuthFilter(q *matching.QueryGraph) map[string]Proof {
 	/*
 	obtaining candidate vertex set and merkle proof for all query vertices
 	*/
+	nodeList := make(map[string]Proof)
+	q.CandidateSets = make(map[int][]int)
+	q.CandidateSetsB = make(map[int]map[int]bool)
 
-	nodeList := make(map[int]Proof)
-	for k, u := range q.QVList {
-		fmt.Println("present key: ", string(u.OneHopStr))
-		C, P, _ := t.AuthSearch(u.OneHopStr)
-		nodeList[u.Id] = P
-		matching.AddCandidate(C, &q, k)
+	for str, ul := range q.NeiStr {
+		fmt.Println("present key: ", str)
+		C, P, _ := t.AuthSearch([]byte(str))
+		nodeList[str] = P
+		for _, u := range ul {
+			q.CandidateSets[u] = C
+			q.CandidateSetsB[u] = make(map[int]bool)
+			for _, v := range C {
+				q.CandidateSetsB[u][v] = true
+			}
+		}
 	}
 	return nodeList
 }

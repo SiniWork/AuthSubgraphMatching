@@ -16,7 +16,7 @@ type VO struct {
 	CSG: save the search space
 	FP: save the false positive vertices
 	 */
-	NodeList map[int]mpt.Proof
+	NodeList map[string]mpt.Proof
 	CSG map[int][]int
 	FP map[int][]int
 	RS []map[int]int
@@ -44,12 +44,14 @@ func (vo *VO) Authentication(query matching.QueryGraph, RD []byte) (bool, []map[
 
 	// search MVPTree and recompute the root digest based on VO.N and VO.CSG
 	CS := make(map[int][]int)
-	for _, u := range query.QVList {
-		var RRD []byte
-		fmt.Println("verify key: ", string(u.OneHopStr))
-		CS[u.Id], RRD = recomputeRD(u.OneHopStr, vo.NodeList[u.Id], vo.CSG)
+	for str, ul := range query.NeiStr {
+		fmt.Println("verify key: ", str)
+		C, RRD := recomputeRD([]byte(str), vo.NodeList[str], vo.CSG)
 		if string(RRD) != string(RD) {
 			return false, nil
+		}
+		for _, u := range ul {
+			CS[u] = C
 		}
 	}
 	vo.CSGMatrix = make(map[int]map[int]bool)
@@ -84,10 +86,9 @@ func (vo *VO) Authentication(query matching.QueryGraph, RD []byte) (bool, []map[
 
 	// check whether the false positive vertices in VO.FP are real false positive vertices
 	// reconstruct the result graph RG'
-	expandId := matching.GetExpandQueryVertex(query.QVList)
-	pendingVertex := query.QVList[expandId]
+	expandId := matching.GetExpandQueryVertex(query)
 	var RS []map[int]int
-	for _, candid := range pendingVertex.Candidates {
+	for _, candid := range query.CandidateSets[expandId] {
 		oneRes := vo.ExEnum(candid, expandId, query)
 		RS = append(RS, oneRes.MS...)
 	}
@@ -342,15 +343,15 @@ func (vo *VO) Match(expL int, expQId int, query matching.QueryGraph, preMatched 
 			if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
 				repeat[n] = true
 				for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
-					flag := true
-					if query.QVList[c].CandidateB[n] { // graph vertex n may belong to the candidate set of query vertex c
+					fg := true
+					if query.CandidateSetsB[c][n] { // graph vertex n may belong to the candidate set of query vertex c
 						for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
 							if query.Matrix[c][pre] && !vo.CSGMatrix[n][preMatched[pre]] { // not consist
-								flag = false
+								fg = false
 								break
 							}
 						}
-						if flag { // graph vertex n indeed belong to the candidate set of query vertex c
+						if fg { // graph vertex n indeed belong to the candidate set of query vertex c
 							classes[c] = append(classes[c], n)
 						}
 					}
@@ -458,20 +459,20 @@ func (vo *VO) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map[i
 	newCurRes := make(map[int][]int)
 	for i, c1 := range curRes[v1] {
 		for _, c2 := range v2Candi {
-			flag := false
+			fg := false
 			if vo.CSGMatrix[c1][c2] {
-				flag = true
+				fg = true
 				// judge the connectivity with other matching vertices
 				for _, n := range v2Nei { // check each neighbor of v2 whether in matched res or not
 					if _, ok := curRes[n]; ok { // neighbor belong to res
 						if !vo.CSGMatrix[curRes[n][i]][c2]{ // the connectivity is not satisfied
-							flag = false
+							fg = false
 							break
 						}
 					}
 				}
 				// satisfy the demand so that produce a new match
-				if flag {
+				if fg {
 					for k, _ := range curRes {
 						newCurRes[k] = append(newCurRes[k], curRes[k][i])
 					}
