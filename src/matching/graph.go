@@ -1,6 +1,7 @@
 package matching
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
@@ -8,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"path"
 	"runtime"
 	"sort"
@@ -20,21 +22,29 @@ type Vertex struct {
 	id int
 	label byte
 	Content string
-	Hash []byte // the hash of the concatenation of the ID of one-hop neighborhood
 }
 
 type Graph struct {
 	/*
 	Vertices: vertex list
 	adj: the adjacency list
-	NeiStr: statistic the one-hop neighborhood string for each vertex
+	matrix: the map format of the adj
+	NeiHashes: the list of hash (neiHash) of the concatenation of the ID of one-hop neighborhood of each vertex
+	NeiStr: statistic the one-hop neighborhood string (neiStr) for each vertex
+	PathFeature: save the path feature of each vertex
 	 */
 	Vertices map[int]Vertex
 	adj map[int][]int
 	matrix map[int]map[int]bool
+	NeiHashes map[int][]byte
 	NeiStr map[string][]int
+	PathFeature map[int]map[string][][]int
 }
 
+type NeighborhoodGraph struct {
+	Vertices map[int]Vertex
+	Adj map[int][]int
+}
 
 func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 	/*
@@ -53,9 +63,9 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 	} else if find := strings.Contains(content[0], "	"); find {
 		splitStr = "	"
 	}
-	// determine edge is one-way (flag = false) or two-way (flag = true)
+	// determine edge is one-way (fg = false) or two-way (fg = true)
 	var target string
-	flag := true
+	fg := true
 	for i, line := range content {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -67,11 +77,11 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 			continue
 		}
 		if line == target {
-			flag = false
+			fg = false
 			break
 		}
 	}
-	if flag { // case1: two-way
+	if fg { // case1: two-way
 		for _, line := range content {
 			line = strings.TrimSpace(line)
 			if line == "" {
@@ -120,9 +130,6 @@ func (g *Graph) LoadUnGraphFromTxt(fileName string) error {
 			}
 			g.matrix[fr][en] = true
 		}
-	}
-	for k, _ := range g.adj {
-		sort.Ints(g.adj[k])
 	}
 	return nil
 }
@@ -215,21 +222,25 @@ func (g *Graph) AssignLabel(labelFile string) error {
 		var v Vertex
 		v.id = k
 		v.label = []byte(labelSet[k])[0]
-		v.Hash = crypto.Keccak256(Serialize(g.adj[k]))
 		v.Content = ""
 		g.Vertices[k] = v
 	}
+	g.getNeiHashNeiStr()
 	return nil
 }
 
-func (g *Graph) StatisticNeiStr() error {
+func (g *Graph) getNeiHashNeiStr() error {
 	/*
-	Generating the one-hop neighborhood string for each vertex and saving into a map g.neiStr
-	g.neiStr, key is the one-hop neighborhood string, value is the list of vertex that have the same neighborhood string
+	Generating the neiHash and neiStr for each vertex
 	 */
 
+	g.NeiHashes = make(map[int][]byte)
 	g.NeiStr = make(map[string][]int)
+
 	for k, v := range g.adj {
+		sort.Ints(g.adj[k])
+		g.NeiHashes[k] = crypto.Keccak256(Serialize(g.adj[k]))
+
 		str := string(g.Vertices[k].label)
 		var nei []string
 		for _, i := range v {
@@ -242,6 +253,180 @@ func (g *Graph) StatisticNeiStr() error {
 		g.NeiStr[str] = append(g.NeiStr[str], k)
 	}
 	return nil
+}
+
+func (g *Graph) getNG(id int) NeighborhoodGraph {
+	/*
+	Getting the neighborhood graph for vertex id
+	 */
+	var NG NeighborhoodGraph
+	NG.Vertices = make(map[int]Vertex)
+	NG.Adj = make(map[int][]int)
+	for _, n := range g.adj[id] {
+		for _, nn := range g.adj[n] {
+			if g.matrix[id][nn] {
+				NG.Adj[n] = append(NG.Adj[n], nn)
+			}
+		}
+		if len(NG.Adj[n]) != 0  {
+			NG.Vertices[n] = g.Vertices[n]
+		}
+	}
+	return NG
+}
+
+func (g *Graph) WritePathFeature(fileName string) error {
+	/*
+	Generating path feature for each vertex then save
+	*/
+	filePtr, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println("create file failed", err.Error())
+		return err
+	}
+	defer filePtr.Close()
+	encoder := json.NewEncoder(filePtr)
+
+	lmax := 3
+	pathFeatureJson := make(map[string]map[string][]string)
+	for v, _ := range g.Vertices {
+		vS := strconv.Itoa(v)
+		pathFeatureJson[vS] = make(map[string][]string)
+		NG := g.getNG(v)
+		for bound := 1; bound <= lmax; bound++ {
+			pf := enumeratePF(NG, bound)
+			for key, routes := range pf {
+				for _, route := range routes {
+					var routeS string
+					for _, id := range route {
+						routeS = routeS + strconv.Itoa(id)
+					}
+					pathFeatureJson[vS][key] = append(pathFeatureJson[vS][key], routeS)
+				}
+			}
+		}
+	}
+	err = encoder.Encode(pathFeatureJson)
+	if err != nil {
+		fmt.Println("coding error", err.Error())
+	} else {
+		fmt.Println("coding success")
+	}
+	return nil
+}
+
+func (g *Graph) ObtainPathFeature(fileName string) error {
+	/*
+	Generating path feature for each vertex
+	 */
+	lmax := 3
+	g.PathFeature = make(map[int]map[string][][]int)
+	if fileName == "" {
+		for v, _ := range g.Vertices {
+			g.PathFeature[v] = make(map[string][][]int)
+			NG := g.getNG(v)
+			for bound := 1; bound <= lmax; bound++ {
+				pf := enumeratePF(NG, bound)
+				for p, r := range pf {
+					g.PathFeature[v][p] = r
+				}
+			}
+			//fmt.Println(v+1, g.PathFeature[v])
+		}
+	} else {
+		filePtr, err := os.Open(fileName)
+		if err != nil {
+			fmt.Println("open file failed", err.Error())
+			return err
+		}
+		defer filePtr.Close()
+		pathFeatureJson := make(map[string]map[string][]string)
+		decoder := json.NewDecoder(filePtr)
+		err = decoder.Decode(&pathFeatureJson)
+		if err != nil {
+			fmt.Println("decoding failed", err.Error())
+		} else {
+			fmt.Println("decoding success")
+		}
+		for vS, pf := range pathFeatureJson {
+			v, _ := strconv.Atoi(vS)
+			g.PathFeature[v] = make(map[string][][]int)
+			for key, routes := range pf {
+				for _, route  := range routes {
+					var routeI []int
+					for _, b := range []byte(route) {
+						bI, _ := strconv.Atoi(string(b))
+						routeI = append(routeI, bI)
+					}
+					g.PathFeature[v][key] = append(g.PathFeature[v][key], routeI)
+				}
+			}
+			//fmt.Println(v+1, g.PathFeature[v])
+		}
+	}
+	return nil
+}
+
+func enumeratePF(ng NeighborhoodGraph, l int) map[string][][]int {
+	/*
+	Enumerating all paths that the length no more than l in ng
+	 */
+	PF := make(map[string][][]int)
+	visited := make(map[int]bool)
+	IdRoute := make(map[string]bool)
+	var path []Vertex
+	for k, v := range ng.Vertices {
+		if !visited[k] {
+			visited[k] = true
+			path = append(path, v)
+			DFS(k, path, 0, l, IdRoute, PF, visited, ng)
+			visited[k] = false
+			path = []Vertex{}
+		}
+	}
+	return PF
+}
+
+func DFS(id int, path []Vertex, l int, bound int, idRoute map[string]bool, pf map[string][][]int, visited map[int]bool, ng NeighborhoodGraph) {
+	if l == bound {
+		var pathStr string
+		var idStr string
+		var idInt []int
+		// AB = BA, ABC = CBA
+		if path[0].label > path[len(path)-1].label {
+			for i:=len(path)-1; i>=0; i-- {
+				pathStr = pathStr + string(path[i].label)
+				idStr = idStr + strconv.Itoa(path[i].id)
+				idInt = append(idInt, path[i].id)
+			}
+		} else {
+			for _, ver := range path {
+				pathStr = pathStr + string(ver.label)
+				idStr = idStr + strconv.Itoa(ver.id)
+				idInt = append(idInt, ver.id)
+			}
+		}
+
+		if !idRoute[idStr] {
+			idRevers := []byte(idStr)
+			Reverse(idRevers)
+			if !idRoute[string(idRevers)] {
+				idRoute[idStr] = true
+				pf[pathStr] = append(pf[pathStr], idInt)
+			}
+		}
+		return
+	}
+	for _, n := range ng.Adj[id] {
+		if !visited[n] {
+			visited[n] = true
+			path = append(path, ng.Vertices[n])
+			DFS(n, path, l+1, bound, idRoute, pf, visited, ng)
+			visited[n] = false
+			path = path[:len(path)-1]
+		}
+	}
+	return
 }
 
 func (g *Graph) Print() error {
@@ -257,14 +442,13 @@ func (g *Graph) ObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	 */
 	var result []map[int]int
 
-	expandId := GetExpandQueryVertex(query.QVList)
-	pendingVertex := query.QVList[expandId]
-	sort.Ints(pendingVertex.Candidates)
-	fmt.Println("the number of candidates: ", len(pendingVertex.Candidates))
+	expandId := GetExpandQueryVertex(query)
+	sort.Ints(query.CandidateSets[expandId])
+	fmt.Println("the number of candidates: ", len(query.CandidateSets[expandId]))
 	zero := 0 // for test
 	useL := []int{}
 	stTotal := time.Now()
-	for _, candid := range pendingVertex.Candidates {
+	for _, candid := range query.CandidateSets[expandId] {
 		//fmt.Println("processing: ", candid, "degree is: ", len(g.adj[candid]))
 		//res := g.expandOneVertexV1(candid, expandId, query)
 		res := g.expandOneVertexV2(candid, expandId, query)
@@ -325,19 +509,18 @@ func (g *Graph) ConObtainMatchedGraphs(query QueryGraph) []map[int]int {
 	Concurrently obtaining results that matched the given query graph in the data graph
 	*/
 	var result []map[int]int
-	expandId := GetExpandQueryVertex(query.QVList)
-	pendingVertex := query.QVList[expandId]
-	lenT := len(pendingVertex.Candidates)
+	expandId := GetExpandQueryVertex(query)
+	lenT := len(query.CandidateSets[expandId])
 
 	cpus := runtime.NumCPU()
 	runtime.GOMAXPROCS(cpus)
 	chs := make([]chan []map[int]int, cpus)
 	start := 0
 	interval := lenT / cpus
-	Shuffle(pendingVertex.Candidates) // because the front part is easy and the back part is hard
+	Shuffle(query.CandidateSets[expandId]) // because the front part is easy and the back part is hard
 	for i := 0; i < len(chs); i++ {
 		chs[i] = make(chan []map[int]int, 1)
-		task := pendingVertex.Candidates[start:start+interval]
+		task := query.CandidateSets[expandId][start:start+interval]
 		start = start + interval
 		qExpand := expandId
 		qG := query
@@ -426,7 +609,7 @@ func (g *Graph) matchingV1(expL int, gVer []int, expQId int, query QueryGraph, v
 	qPresentVer := query.QVList[expQId].ExpandLayer[expL]
 	qVerCandi := make(map[int]map[int]bool)
 	for _, qV := range qPresentVer {
-		qVerCandi[qV] = query.QVList[qV].CandidateB
+		qVerCandi[qV] = query.CandidateSetsB[qV]
 	}
 
 	// 3. classify the vertices of the current layer of the data graph according to query candidates map
@@ -507,15 +690,15 @@ func (g *Graph) matchingV2(expL int, expQId int, query QueryGraph, preMatched ma
 			if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
 				repeat[n] = true
 				for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
-					flag := true
-					if query.QVList[c].CandidateB[n] { // graph vertex n may belong to the candidate set of query vertex c
+					fg := true
+					if query.CandidateSetsB[c][n] { // graph vertex n may belong to the candidate set of query vertex c
 						for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
 							if query.Matrix[c][pre] && !g.matrix[n][preMatched[pre]] { // not consist
-								flag = false
+								fg = false
 								break
 							}
 						}
-						if flag { // graph vertex n indeed belong to the candidate set of query vertex c
+						if fg { // graph vertex n indeed belong to the candidate set of query vertex c
 							classes[c] = append(classes[c], n)
 						}
 					}
@@ -560,13 +743,13 @@ func (g *Graph) Filter(preMatched map[int]int, raw []map[int]int, fine *[]map[in
 	Filter the raw media results rely on the connectivity of query graph and the vertices of present layer
 	 */
 	var verList [][]int
-	var flag = true
+	var fg = true
 	for _, r := range raw {
 		if checkDuplicateVal(r) {
 			continue
 		}
 		presentMatched := append2IntMap(preMatched, r)
-		flag = true
+		fg = true
 		var verL []int
 		I:
 		for k1, v1 := range presentMatched {
@@ -582,12 +765,12 @@ func (g *Graph) Filter(preMatched map[int]int, raw []map[int]int, fine *[]map[in
 				if k1 == k2 {
 					continue
 				} else if !connected(k1Nei, k2, v1Nei, v2){
-					flag = false
+					fg = false
 					break I
 				}
 			}
 		}
-		if flag {
+		if fg {
 			for _, v := range r {
 				verL = append(verL, v)
 			}
@@ -695,20 +878,20 @@ func (g *Graph) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map
 	newCurRes := make(map[int][]int)
 	for i, c1 := range curRes[v1] {
 		for _, c2 := range v2Candi {
-			flag := false
+			fg := false
 			if g.matrix[c1][c2] {
-				flag = true
+				fg = true
 				// judge the connectivity with other matching vertices
 				for _, n := range v2Nei { // check each neighbor of v2 whether in matched res or not
 					if _, ok := curRes[n]; ok { // neighbor belong to res
 						if !g.matrix[curRes[n][i]][c2]{ // the connectivity is not satisfied
-							flag = false
+							fg = false
 							break
 						}
 					}
 				}
 				// satisfy the demand so that produce a new match
-				if flag {
+				if fg {
 					for k, _ := range curRes {
 						newCurRes[k] = append(newCurRes[k], curRes[k][i])
 					}
@@ -718,30 +901,6 @@ func (g *Graph) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map
 		}
 	}
 	return newCurRes
-}
-
-func (g *Graph) BacktrackingVO(query QueryGraph) {
-	/*
-	Computing the VO size of backtracking search algorithm
-	 */
-	const SizeVer = 18
-	//num := 0
-	verList := make(map[int]bool)
-	for _, u := range query.QVList {
-		for _, v := range u.Candidates {
-			verList[v] = true
-			//for _, n := range g.adj[v] {
-				//verList[n] = true
-				//maintain a adj for each neighbor, compute the hash of this neighbor need this adj
-				//for _, nn := range g.adj[n] {
-				//	if nn belong to the subgraph, then add
-				//}
-			//}
-			//num = num + len(g.adj[v])
-		}
-	}
-	fmt.Println("the number of vertices of candidates: ", len(verList))
-	//fmt.Println("the VO size of BS: ", len(verList)*(32+SizeVer)+num*8, " Byte")
 }
 
 func ProductPlus(partRes []map[int][]int, res *[]map[int]int, qV []int, level int, oneMap map[int]int) {
@@ -757,17 +916,17 @@ func ProductPlus(partRes []map[int][]int, res *[]map[int]int, qV []int, level in
 		}
 	} else {
 		deduplicate := make(map[int]bool)
-		flag := false
+		fg := false
 		// check whether exist repeat elements in oneMap
 		for _, v := range oneMap{
 			if deduplicate[v] {
-				flag = true
+				fg = true
 				break
 			} else {
 				deduplicate[v] = true
 			}
 		}
-		if !flag { // without repeat elements
+		if !fg { // without repeat elements
 			newMp := copyMap(oneMap)
 			*res = append(*res, newMp)
 		}
@@ -835,15 +994,15 @@ func Product(matchedMap map[int][]int, res *[]map[int]int, qV []int, level int, 
 	}
 }
 
-func GetExpandQueryVertex(qList []QVertex) int {
+func GetExpandQueryVertex(q QueryGraph) int {
 	/*
 	Computing the weights for each query vertex and choose the smallest
 	 */
 	bias := 0.5
 	index := 0
 	coe := 10000000000.0000
-	for i, each := range qList {
-		temp := float64(len(each.Candidates))*(1-bias) + float64(len(each.ExpandLayer))*bias
+	for i, c := range q.CandidateSets {
+		temp := float64(len(c))*(1-bias) + float64(len(q.QVList[i].ExpandLayer))*bias
 		if temp < coe {
 			index = i
 			coe = temp
@@ -889,4 +1048,10 @@ func Shuffle(slice []int) {
 		slice[n-1], slice[randIndex] = slice[randIndex], slice[n-1]
 		slice = slice[:n-1]
 	}
+}
+
+func Reverse(s interface{})  {
+	sort.SliceStable(s, func(i, j int) bool {
+		return true
+	})
 }

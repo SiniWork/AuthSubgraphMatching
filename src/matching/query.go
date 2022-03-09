@@ -7,17 +7,11 @@ import (
 
 type QVertex struct {
 	/*
-	OneHopStr: the dictionary label sequence of 1-hop neighbors
 	ExpandLayer: save each layer's vertices, the layer index start from 1
-	Candidates:  candidate vertex set of query vertex
-	CandidateB: the 'map' format of candidate vertex set, used as bloom filter
 	*/
 	Id int
 	Label byte
-	OneHopStr []byte
 	ExpandLayer map[int][]int
-	Candidates []int
-	CandidateB map[int]bool
 }
 
 type QueryGraph struct {
@@ -25,10 +19,16 @@ type QueryGraph struct {
 	QVList: the list of query vertices
 	Adj: the adjacency list
 	Matrix: the 'map' format of Adj
+	CandidateSets:  candidate vertex set of each query vertex
+	CandidateSetsB: the 'map' format of candidate vertex set, used as bloom filter
 	*/
-	QVList []QVertex
+	QVList map[int]QVertex
 	Adj map[int][]int
 	Matrix map[int]map[int]bool
+	NeiStr map[string][]int
+	PathFeature map[int]map[string]int
+	CandidateSets map[int][]int
+	CandidateSetsB map[int]map[int]bool
 }
 
 func LoadProcessing(queryFile, queryLabelFile string) QueryGraph {
@@ -41,6 +41,18 @@ func LoadProcessing(queryFile, queryLabelFile string) QueryGraph {
 	query.AssignLabel(queryLabelFile)
 	queryG.Adj = query.adj
 	queryG.Matrix = query.matrix
+	queryG.NeiStr = query.NeiStr
+	queryG.QVList = make(map[int]QVertex)
+	queryG.PathFeature = make(map[int]map[string]int)
+	query.ObtainPathFeature("")
+
+	// obtain path feature
+	for u, pf := range query.PathFeature {
+		queryG.PathFeature[u] = make(map[string]int)
+		for str, routes := range pf {
+			queryG.PathFeature[u][str] = len(routes)
+		}
+	}
 
 	var temp []int
 	for k, _ := range query.Vertices {
@@ -50,27 +62,15 @@ func LoadProcessing(queryFile, queryLabelFile string) QueryGraph {
 	for _, i := range temp {
 		v := query.Vertices[i]
 		qV := QVertex{Id: v.id, Label: v.label}
-		qV.OneHopStr = append(qV.OneHopStr, v.label)
-		for _, nei := range query.adj[v.id] {
-			qV.OneHopStr = append(qV.OneHopStr, query.Vertices[nei].label)
-		}
 		qV.ExpandLayer = expandGraph(v.id, query.adj)
-		queryG.QVList = append(queryG.QVList, qV)
+		queryG.QVList[v.id] = qV
 	}
 	return queryG
 }
 
 func (q *QueryGraph) Print() {
-	for _, v := range q.QVList {
-		fmt.Println(len(v.Candidates))
-	}
-}
-
-func AddCandidate(candi []int, qg *QueryGraph, index int) {
-	qg.QVList[index].Candidates = candi
-	qg.QVList[index].CandidateB = make(map[int]bool)
-	for _, v := range candi {
-		qg.QVList[index].CandidateB[v] = true
+	for k, v := range q.CandidateSets {
+		fmt.Println(k, v)
 	}
 }
 
