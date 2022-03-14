@@ -26,7 +26,7 @@ type QueryGraph struct {
 	Adj map[int][]int
 	Matrix map[int]map[int]bool
 	NeiStr map[string][]int
-	PathFeature map[int]map[string]int
+	PathFeature map[int]map[string][][]int
 	CandidateSets map[int][]int
 	CandidateSetsB map[int]map[int]bool
 }
@@ -43,14 +43,14 @@ func LoadProcessing(queryFile, queryLabelFile string) QueryGraph {
 	queryG.Matrix = query.matrix
 	queryG.NeiStr = query.NeiStr
 	queryG.QVList = make(map[int]QVertex)
-	queryG.PathFeature = make(map[int]map[string]int)
+	queryG.PathFeature = make(map[int]map[string][][]int)
 	query.ObtainPathFeature("")
 
 	// obtain path feature
 	for u, pf := range query.PathFeature {
-		queryG.PathFeature[u] = make(map[string]int)
+		queryG.PathFeature[u] = make(map[string][][]int)
 		for str, routes := range pf {
-			queryG.PathFeature[u][str] = len(routes)
+			queryG.PathFeature[u][str] = routes
 		}
 	}
 
