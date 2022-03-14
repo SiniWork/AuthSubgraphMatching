@@ -360,7 +360,7 @@ func enumeratePF(ng NeighborhoodGraph, l int) map[string][][]int {
 }
 
 func DFS(id int, path []Vertex, l int, bound int, idRoute map[string]bool, pf map[string][][]int, visited map[int]bool, ng NeighborhoodGraph) {
-	if l > 0 {
+	if l == bound {
 		var pathStr string
 		var idStr string
 		var idInt []int
@@ -386,9 +386,7 @@ func DFS(id int, path []Vertex, l int, bound int, idRoute map[string]bool, pf ma
 				pf[pathStr] = append(pf[pathStr], idInt)
 			}
 		}
-		if l == bound {
-			return
-		}
+		return
 	}
 	for _, n := range ng.Adj[id] {
 		if !visited[n] {

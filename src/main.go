@@ -12,15 +12,16 @@ func main(){
 
 	fmt.Println("----------------Loading Graph----------------")
 	g := new(matching.Graph)
-	dataset := "ex"
+	dataset := "ye"
 	switch dataset {
 	case "ex":
 		g.LoadUnGraphFromTxt("./data/example1.txt")
 		g.AssignLabel("./data/example1_label.txt")
-		//g.ObtainPathFeature("./data/pf2/JExample.json")
+		g.ObtainPathFeature("./data/pf2/JExample.json")
 	case "ye":
 		g.LoadUnGraphFromTxt("./data/yeast.txt")
 		g.AssignLabel("./data/yeast_label.txt")
+		g.ObtainPathFeature("")
 		//g.ObtainPathFeature("./data/pf2/JYeast.json")
 	case "hu":
 		g.LoadUnGraphFromTxt("./data/human.txt")
@@ -33,7 +34,7 @@ func main(){
 	case "db":
 		g.LoadUnGraphFromTxt("./data/dblp.txt")
 		g.AssignLabel("./data/dblp_label.txt")
-		g.WritePathFeature("./data/pf2/JDblp.json")
+		//g.WritePathFeature("./data/pf2/JDblp.json")
 		//g.ObtainPathFeature("./data/pf2/JDblp.json")
 	case "am":
 		g.LoadUnGraphFromTxt("./data/amazon.txt")
@@ -78,6 +79,7 @@ func main(){
 	case 6:
 		q = matching.LoadProcessing("./data/query6.txt", "./data/query6_label.txt")
 	}
+	fmt.Println(q.PathFeature)
 
 	//fmt.Println("-----------------the rate of remove false positive------------------")
 	//trie.AuthFilter(&q)
@@ -96,8 +98,8 @@ func main(){
 	startT1 := time.Now()
 	fmt.Println("----------------Authenticated Filtering----------------")
 	VO := verification.VO{}
-	VO.NodeList = trie.AuthFilter(&q)
-	//VO.NodeList = trie.AuthenFilterPlus(&q, *g)
+	//VO.NodeList = trie.AuthFilter(&q)
+	VO.NodeList = trie.AuthenFilterPlus(&q, *g)
 	time1 := time.Since(startT1)
 	fmt.Println("phase 1 SP CPU time is: ", time1)
 
@@ -109,12 +111,14 @@ func main(){
 	VO.RS = VO2.RS
 	time2 := time.Since(startT2)
 	fmt.Println("phase 2 SP CPU time is: ", time2)
+	fmt.Println(len(VO.RS))
 
-	startT3 := time.Now()
-	fmt.Println("----------------Verification----------------")
-	F, _ := VO.Authentication(q, RD)
-	fmt.Println(F)
-	time3 := time.Since(startT3)
-	fmt.Println("Client CPU time is: ", time3)
+	//
+	//startT3 := time.Now()
+	//fmt.Println("----------------Verification----------------")
+	//F, _ := VO.Authentication(q, RD)
+	//fmt.Println(F)
+	//time3 := time.Since(startT3)
+	//fmt.Println("Client CPU time is: ", time3)
 
 }

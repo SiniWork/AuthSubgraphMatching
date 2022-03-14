@@ -1,5 +1,9 @@
 package matching
 
+import (
+	"fmt"
+)
+
 type OneProof struct {
 	MS []map[int]int
 	CSG map[int][]int
@@ -92,47 +96,151 @@ func (g *Graph) authMatch(expL int, expQId int, query QueryGraph, preMatched map
 		visited[v] = true
 	}
 	var gVer []int // the graph vertices need to be expanded in current layer
+	var curRes []map[int]int
 	if expL == 1 {
-		gVer = append(gVer, preMatched[expQId])
-	} else {
-		for _, q := range query.QVList[expQId].ExpandLayer[expL-1] {
-			gVer = append(gVer, preMatched[q])
+		cVer := preMatched[expQId]
+		// obtain a path with length equal to PathLen and the query vertices in the path
+		var pfQVer []int
+		var path string
+		for p, routes := range query.PathFeature[expQId] {
+			if len(p) == 3 {
+				path = p
+				pfQVer = routes[0]
+			}
 		}
-	}
-	repeat := make(map[int]bool)  // avoid visited repeat vertex in current layer
-	for _, v := range gVer { // expand each graph vertex of current layer
-		oneVer.CSG[v] = g.adj[v]
-		for _, n := range g.adj[v] {
-			if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
-				repeat[n] = true
-				for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
-					fg := true
-					if query.CandidateSetsB[c][n] { // graph vertex n may belong to the candidate set of query vertex c
-						oneVer.CSG[n] = g.adj[n]
-						for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
-							if query.Matrix[c][pre] && !g.matrix[n][preMatched[pre]] { // not consist
-								fg = false
-								break
+		if len(pfQVer) == 3 { // optimize
+			if len(pfQVer) == len(qPresentVer) { // the path coves all query vertices of current layer
+				// obtain the matched paths
+				mPaths := g.PathFeature[cVer][path]
+				if !query.Matrix[pfQVer[0]][pfQVer[len(pfQVer)-1]] {
+					if len(query.QVList[expQId].ExpandLayer) == 1 { // matched paths are the final result
+						for _, m := range mPaths {
+							curR := make(map[int]int)
+							for k, v := range m {
+								curR[pfQVer[k]] = v
+							}
+							curRes = append(curRes, curR)
+						}
+					} else {
+						for _, m := range mPaths {
+							curR := make(map[int]int)
+							flag := true
+							for k, v := range m {
+								if !query.CandidateSetsB[pfQVer[k]][v] {
+									flag = false
+									break
+								}
+								curR[pfQVer[k]] = v
+							}
+							if flag {
+								curRes = append(curRes, curR)
 							}
 						}
-						if fg { // graph vertex n indeed belong to the candidate set of query vertex c
+					}
+				} else {
+					// filter the matched paths according to the connected and the CS
+					if len(query.QVList[expQId].ExpandLayer) == 1 {
+						for _, m := range mPaths {
+							curR := make(map[int]int)
+							flag := true
+							if !g.matrix[m[0]][m[len(m)-1]] {
+								flag = false
+							} else {
+								for k, v := range m {
+									curR[pfQVer[k]] = v
+								}
+							}
+							if flag {
+								curRes = append(curRes, curR)
+							}
+						}
+					} else {
+						for _, m := range mPaths {
+							curR := make(map[int]int)
+							flag := true
+							if !g.matrix[m[0]][m[len(m)-1]] {
+								flag = false
+							} else {
+								for k, v := range m {
+									if !query.CandidateSetsB[pfQVer[k]][v] {
+										flag = false
+										break
+									}
+									curR[pfQVer[k]] = v
+								}
+							}
+							if flag {
+								curRes = append(curRes, curR)
+							}
+						}
+					}
+				}
+			} else { // uncover
+				// obtain the LC of uncovered query vertices
+			}
+		} else { // don't need to optimize
+			fmt.Println("no optimize")
+			oneVer.CSG[cVer] = g.adj[cVer]
+			for _, n := range g.adj[cVer] {
+				if !visited[n] { // get one unvisited graph vertex n of the current layer
+					for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
+						if query.CandidateSetsB[c][n] { // graph vertex n may belong to the candidate set of query vertex c
+							oneVer.CSG[n] = g.adj[n]
 							classes[c] = append(classes[c], n)
 						}
 					}
 				}
 			}
+			// if one of query vertices' candidate set is empty then return
+			if len(classes) < len(qPresentVer) {
+				return
+			}
+			// 3. obtain current layer's matched results (Enumeration)
+			curRes = g.ObtainCurRes(classes, query, qPresentVer)
+			// if present layer has no media result then return
+			if len(curRes) == 0 {
+				return
+			}
 		}
-	}
-	// if one of query vertices' candidate set is empty then return
-	if len(classes) < len(qPresentVer) {
-		return
-	}
+	} else {
+		for _, q := range query.QVList[expQId].ExpandLayer[expL-1] {
+			gVer = append(gVer, preMatched[q])
+		}
+		repeat := make(map[int]bool)  // avoid visited repeat vertex in current layer
+		for _, v := range gVer { // expand each graph vertex of current layer
+			oneVer.CSG[v] = g.adj[v]
+			for _, n := range g.adj[v] {
+				if !visited[n] && !repeat[n] { // get one unvisited graph vertex n of the current layer
+					repeat[n] = true
+					for _, c := range qPresentVer { // check current graph vertex n belong to which query vertex's candidate set
+						fg := true
+						if query.CandidateSetsB[c][n] { // graph vertex n may belong to the candidate set of query vertex c
+							oneVer.CSG[n] = g.adj[n]
+							for pre, _ := range preMatched { // check whether the connectivity of query vertex c with its pre vertices and the connectivity of graph vertex n with its correspond pre vertices are consistent
+								if query.Matrix[c][pre] && !g.matrix[n][preMatched[pre]] { // not consist
+									fg = false
+									break
+								}
+							}
+							if fg { // graph vertex n indeed belong to the candidate set of query vertex c
+								classes[c] = append(classes[c], n)
+							}
+						}
+					}
+				}
+			}
+		}
+		// if one of query vertices' candidate set is empty then return
+		if len(classes) < len(qPresentVer) {
+			return
+		}
 
-	// 3. obtain current layer's matched results (Enumeration)
-	curRes := g.ObtainCurRes(classes, query, qPresentVer)
-	// if present layer has no media result then return
-	if len(curRes) == 0 {
-		return
+		// 3. obtain current layer's matched results (Enumeration)
+		curRes = g.ObtainCurRes(classes, query, qPresentVer)
+		// if present layer has no media result then return
+		if len(curRes) == 0 {
+			return
+		}
 	}
 
 	// 4. combine current layer's result with pre result
