@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
-	"reflect"
-	"sort"
 )
 
 type VO struct {
@@ -63,26 +61,34 @@ func (vo *VO) Authentication(query matching.QueryGraph, RD []byte) (bool, []map[
 	}
 
 	// check whether the combination of vertices of VO.FP and RS is the same as the CS
-	combinCS := make(map[int][]int)
-	combinCSM := make(map[int]map[int]bool)
-	for _, u := range query.QVList {
-		combinCSM[u.Id] = make(map[int]bool)
-	}
-	for _, m := range vo.RS {
-		for u, v := range m {
-			if !combinCSM[u][v] {
-				combinCS[u] = append(combinCS[u], v)
-			}
-		}
-	}
-	for u, _ := range combinCS {
-		combinCS[u] = append(combinCS[u], vo.FP[u]...)
-		sort.Ints(combinCS[u])
-		sort.Ints(CS[u])
-		if !reflect.DeepEqual(combinCS[u], CS[u]) {
-			return false, nil
-		}
-	}
+	//combinCS := make(map[int][]int)
+	//combinCSB := make(map[int]map[int]bool)
+	//for _, u := range query.QVList {
+	//	combinCSB[u.Id] = make(map[int]bool)
+	//}
+	//for _, m := range vo.RS {
+	//	for u, v := range m {
+	//		if !combinCSB[u][v] {
+	//			combinCSB[u][v] = true
+	//			combinCS[u] = append(combinCS[u], v)
+	//		}
+	//	}
+	//}
+	//for u, lis := range vo.FP {
+	//	for _, c := range lis {
+	//		if !combinCSB[u][c] {
+	//			combinCSB[u][c] = true
+	//			combinCS[u] = append(combinCS[u], c)
+	//		}
+	//	}
+	//}
+	//for u, _ := range combinCS {
+	//	sort.Ints(combinCS[u])
+	//	sort.Ints(CS[u])
+	//	if !reflect.DeepEqual(combinCS[u], CS[u]) {
+	//		return false, nil
+	//	}
+	//}
 
 	// check whether the false positive vertices in VO.FP are real false positive vertices
 	// reconstruct the result graph RG'
@@ -454,7 +460,7 @@ func (vo *VO) ObtainCurRes(classes map[int][]int, query matching.QueryGraph, qVe
 
 func (vo *VO) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map[int][]int {
 	/*
-		Join the vertex v2 to current results
+	Join the vertex v2 to current results
 	*/
 	newCurRes := make(map[int][]int)
 	for i, c1 := range curRes[v1] {
@@ -484,30 +490,52 @@ func (vo *VO) join(curRes map[int][]int, v1, v2 int, v2Candi, v2Nei []int) map[i
 	return newCurRes
 }
 
-//func (p mpt.Proof) Size() (int, int) {
-//	/*
-//	Counting the size of the Proof
-//	*/
-//	var totalSize int
-//	var resultSize int
-//
-//	for _, node := range p.Nodes {
-//		if leaf, ok := node.(*LeafNode); ok {
-//			leafSize := len(leaf.Path) + len(leaf.Value) * 8
-//			totalSize = totalSize + leafSize
-//			resultSize = resultSize + leafSize - len(leaf.Value) * 8
-//		} else if branch, ok := node.(*BranchNode); ok {
-//			branchSize := BranchSize * 8 + len(branch.Value) * 8
-//			totalSize = totalSize + branchSize
-//			resultSize = resultSize + branchSize - len(branch.Value) * 8
-//		} else if ext, ok := node.(*ExtensionNode); ok {
-//			extSize := len(ext.Path) + 8
-//			totalSize = totalSize + extSize
-//		} else if hs, ok := node.(HashNode); ok {
-//			hashSize := len(hs.hash)
-//			totalSize = totalSize + hashSize
-//		}
-//	}
-//	return totalSize, resultSize
-//}
+func  (vo *VO) Size() int {
+	/*
+		Counting the size of the Proof
+	*/
+	var totalSize int
+	hashL := 32
+	intL := 4
 
+	// count VO.NodeList
+	nodeMap := make(map[mpt.Node]bool)
+	for _, nodes := range vo.NodeList {
+		for _, node := range nodes.Nodes {
+			if hs, ok := node.(mpt.HashNode); ok {
+				hashSize := len(hs.Hash())
+				totalSize = totalSize + hashSize
+			} else {
+				if !nodeMap[node] {
+					nodeMap[node] = true
+					if leaf, ok := node.(*mpt.LeafNode); ok {
+						leafSize := len(leaf.Path) + len(leaf.Value) * (intL+hashL)
+						totalSize = totalSize + leafSize
+					} else if branch, ok := node.(*mpt.BranchNode); ok {
+						branchSize := mpt.BranchSize + len(branch.Value) * (intL+hashL)
+						totalSize = totalSize + branchSize
+					} else if ext, ok := node.(*mpt.ExtensionNode); ok {
+						extSize := len(ext.Path)
+						totalSize = totalSize + extSize
+					}
+				}
+			}
+		}
+	}
+	fmt.Println("VO.NodeList: ", totalSize/1000)
+	// count VO.CSG
+	CSGSize := 0
+	for _, s := range vo.CSG {
+		CSGSize = CSGSize + (len(s)+1)*intL
+	}
+	fmt.Println("VO.CSG: ", CSGSize/1000)
+	totalSize = totalSize + CSGSize
+	// count VO.FP
+	FPSize := 0
+	for _, f := range vo.FP {
+		FPSize = FPSize + (len(f)+1)*intL
+	}
+	fmt.Println("VO.FP: ", FPSize/1000)
+	totalSize = totalSize + FPSize
+	return totalSize
+}
