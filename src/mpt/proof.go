@@ -215,7 +215,7 @@ func (t *Trie) AuthenFilterPlus(q *matching.QueryGraph, g matching.Graph) map[st
 	return nodeList
 }
 
-func (t *Trie) AuthSearchPlus(key []byte, g matching.Graph, pf map[string]int) ([]int, Proof, bool) {
+func (t *Trie) AuthSearchPlus(key []byte, g matching.Graph, pf map[string][][]int) ([]int, Proof, bool) {
 	/*
 		obtaining candidate vertex set and merkle proof for the given key (one query vertex)
 	*/
@@ -256,7 +256,7 @@ func (t *Trie) AuthSearchPlus(key []byte, g matching.Graph, pf map[string]int) (
 							if _, yes := g.PathFeature[k][pa]; !yes {
 								flag = false
 								break
-							} else if len(g.PathFeature[k][pa]) < num {
+							} else if len(g.PathFeature[k][pa]) < len(num) {
 								flag = false
 								break
 							}
@@ -287,7 +287,7 @@ func (t *Trie) AuthSearchPlus(key []byte, g matching.Graph, pf map[string]int) (
 							if _, yes := g.PathFeature[k][pa]; !yes {
 								flag = false
 								break
-							} else if len(g.PathFeature[k][pa]) < num {
+							} else if len(g.PathFeature[k][pa]) < len(num) {
 								flag = false
 								break
 							}
