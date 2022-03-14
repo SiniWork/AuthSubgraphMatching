@@ -41,6 +41,7 @@ type Graph struct {
 	PathFeature map[int]map[string][][]int
 }
 
+const PathLen = 2
 type NeighborhoodGraph struct {
 	Vertices map[int]Vertex
 	Adj map[int][]int
@@ -277,7 +278,7 @@ func (g *Graph) getNG(id int) NeighborhoodGraph {
 
 func (g *Graph) WritePathFeature(fileName string) error {
 	/*
-	Generating path feature for each vertex then save
+		Generating path feature for each vertex then save
 	*/
 	filePtr, err := os.Create(fileName)
 	if err != nil {
@@ -287,26 +288,16 @@ func (g *Graph) WritePathFeature(fileName string) error {
 	defer filePtr.Close()
 	encoder := json.NewEncoder(filePtr)
 
-	lmax := 3
-	pathFeatureJson := make(map[string]map[string][]string)
+	PathFeature := make(map[int]map[string][][]int)
 	for v, _ := range g.Vertices {
-		vS := strconv.Itoa(v)
-		pathFeatureJson[vS] = make(map[string][]string)
+		PathFeature[v] = make(map[string][][]int)
 		NG := g.getNG(v)
-		for bound := 1; bound <= lmax; bound++ {
-			pf := enumeratePF(NG, bound)
-			for key, routes := range pf {
-				for _, route := range routes {
-					var routeS string
-					for _, id := range route {
-						routeS = routeS + strconv.Itoa(id)
-					}
-					pathFeatureJson[vS][key] = append(pathFeatureJson[vS][key], routeS)
-				}
-			}
+		pf := enumeratePF(NG, PathLen)
+		for p, r := range pf {
+			PathFeature[v][p] = r
 		}
 	}
-	err = encoder.Encode(pathFeatureJson)
+	err = encoder.Encode(PathFeature)
 	if err != nil {
 		fmt.Println("coding error", err.Error())
 	} else {
@@ -319,19 +310,16 @@ func (g *Graph) ObtainPathFeature(fileName string) error {
 	/*
 	Generating path feature for each vertex
 	 */
-	lmax := 3
+
 	g.PathFeature = make(map[int]map[string][][]int)
 	if fileName == "" {
 		for v, _ := range g.Vertices {
 			g.PathFeature[v] = make(map[string][][]int)
 			NG := g.getNG(v)
-			for bound := 1; bound <= lmax; bound++ {
-				pf := enumeratePF(NG, bound)
-				for p, r := range pf {
-					g.PathFeature[v][p] = r
-				}
+			pf := enumeratePF(NG, PathLen)
+			for p, r := range pf {
+				g.PathFeature[v][p] = r
 			}
-			//fmt.Println(v+1, g.PathFeature[v])
 		}
 	} else {
 		filePtr, err := os.Open(fileName)
@@ -340,28 +328,12 @@ func (g *Graph) ObtainPathFeature(fileName string) error {
 			return err
 		}
 		defer filePtr.Close()
-		pathFeatureJson := make(map[string]map[string][]string)
 		decoder := json.NewDecoder(filePtr)
-		err = decoder.Decode(&pathFeatureJson)
+		err = decoder.Decode(&g.PathFeature)
 		if err != nil {
 			fmt.Println("decoding failed", err.Error())
 		} else {
 			fmt.Println("decoding success")
-		}
-		for vS, pf := range pathFeatureJson {
-			v, _ := strconv.Atoi(vS)
-			g.PathFeature[v] = make(map[string][][]int)
-			for key, routes := range pf {
-				for _, route  := range routes {
-					var routeI []int
-					for _, b := range []byte(route) {
-						bI, _ := strconv.Atoi(string(b))
-						routeI = append(routeI, bI)
-					}
-					g.PathFeature[v][key] = append(g.PathFeature[v][key], routeI)
-				}
-			}
-			//fmt.Println(v+1, g.PathFeature[v])
 		}
 	}
 	return nil
@@ -388,7 +360,7 @@ func enumeratePF(ng NeighborhoodGraph, l int) map[string][][]int {
 }
 
 func DFS(id int, path []Vertex, l int, bound int, idRoute map[string]bool, pf map[string][][]int, visited map[int]bool, ng NeighborhoodGraph) {
-	if l == bound {
+	if l > 0 {
 		var pathStr string
 		var idStr string
 		var idInt []int
@@ -406,7 +378,6 @@ func DFS(id int, path []Vertex, l int, bound int, idRoute map[string]bool, pf ma
 				idInt = append(idInt, ver.id)
 			}
 		}
-
 		if !idRoute[idStr] {
 			idRevers := []byte(idStr)
 			Reverse(idRevers)
@@ -415,7 +386,9 @@ func DFS(id int, path []Vertex, l int, bound int, idRoute map[string]bool, pf ma
 				pf[pathStr] = append(pf[pathStr], idInt)
 			}
 		}
-		return
+		if l == bound {
+			return
+		}
 	}
 	for _, n := range ng.Adj[id] {
 		if !visited[n] {
