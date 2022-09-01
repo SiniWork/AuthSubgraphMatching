@@ -1,1 +1,1 @@
-# Corgi
+# Corgi for Authentic Subgraph Matching
