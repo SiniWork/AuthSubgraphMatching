@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 )
+var Labels = []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+	"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
 
 func CheckVerEdge(fileName string) (map[string]bool, int){
 	/*
@@ -47,11 +49,10 @@ func CheckVerEdge(fileName string) (map[string]bool, int){
 	return vertices, edgesN
 }
 
-func RandomGenerateLabel(verL map[string]bool, filePath string) {
+func RandomGenerateLabel(verL map[string]bool, labelSet []string, filePath string) {
 	/*
 	Randomly choosing a label from the set {'A', 'B', 'C', 'D'} to a vertex
 	 */
-	labelSet := map[int]string {0:"A", 1:"B", 2:"C", 3:"D"}
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		fmt.Println("open file error", err)
@@ -60,17 +61,17 @@ func RandomGenerateLabel(verL map[string]bool, filePath string) {
 	write := bufio.NewWriter(file)
 	rand.Seed(time.Now().Unix())
 	for k, _ := range verL {
-		write.WriteString(k+" "+labelSet[rand.Intn(4)]+"\r\n")
+		write.WriteString(k+" "+labelSet[rand.Intn(len(labelSet))]+"\r\n")
 	}
 	write.Flush()
 }
 
-func ConfigLabelForG(graphFile, labelFile string) {
+func ConfigLabelForG(graphFile, labelFile string, labelSet []string) {
 	/*
 	Preparing label file for the given graph
 	 */
 	vertices, _ := CheckVerEdge(graphFile)
-	RandomGenerateLabel(vertices, labelFile)
+	RandomGenerateLabel(vertices,  labelSet, labelFile)
 }
 
 func CheckGraphLabel(graphFile, labelFile string) bool {
@@ -100,3 +101,8 @@ func CheckGraphLabel(graphFile, labelFile string) bool {
 	fmt.Println("the number of edges: ", i)
 	return false
 }
+
+//fmt.Println("----------------Generating Label----------------")
+//labels := tool.Labels[:20]
+//tool.ConfigLabelForG("./data/amazon.txt", "./data/amazon_label.txt", labels)
+//tool.ConfigLabelForG("./data/query/query"+strconv.Itoa(workload)+".txt", "./data/query/query"+strconv.Itoa(workload)+"_label.txt", labels)

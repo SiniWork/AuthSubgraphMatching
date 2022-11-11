@@ -1,6 +1,8 @@
-package mpt
+package mvp
 
-import "github.com/ethereum/go-ethereum/crypto"
+import (
+	"crypto/md5"
+)
 
 type ExtensionNode struct {
 		Path []byte
@@ -16,8 +18,14 @@ func NewExtensionNode(path []byte, next Node) *ExtensionNode {
 	}
 }
 
+func (e *ExtensionNode) SetNext(node Node) {
+	e.Next = node
+}
 func (e ExtensionNode) Hash() []byte {
-	return crypto.Keccak256(e.Serialize())
+	h := md5.New()
+	h.Write(e.Serialize())
+	return h.Sum(nil)
+	//return crypto.Keccak256(e.Serialize())
 }
 
 func (e ExtensionNode) Raw() []interface{} {
